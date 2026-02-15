@@ -1,5 +1,5 @@
 import unittest
-import Hopfield as hop
+from src import Hopfield as hop 
 import numpy as np
 
 
@@ -7,7 +7,7 @@ class TestHopfieldNumpy(unittest.TestCase):
 
     def test_inputs_init(self):
         data = [[1, 2, 3], [1, 2, 3], [1, 2, 3]]
-        net = hop.HopfieldNet(data, 1, 0)
+        net = hop.HopfieldNet(data, 1, 0, "Classic")
         for x in range(0, len(data)):
             for y in range(0, len(data)):
                 self.assertAlmostEqual(net.inputs[x][y], 1 / 9, 2)
@@ -18,7 +18,7 @@ class TestHopfieldNumpy(unittest.TestCase):
             [3, -1, 0],
             [0, 0, 0]
         ])
-        net = hop.HopfieldNet(data, 1, 0)
+        net = hop.HopfieldNet(data, 1, 0, "Classic")
         acts = net.activation(data[0, :])
         self.assertAlmostEqual(acts[0], 0, 1)
         self.assertAlmostEqual(acts[1], 0.5, 1)
@@ -40,7 +40,7 @@ class TestHopfieldNumpy(unittest.TestCase):
             [3, -1, 0],
             [0, 0, 0]
         ])
-        net = hop.HopfieldNet(data, 1, 0)
+        net = hop.HopfieldNet(data, 1, 0, "Classic")
         self.assertEqual(np.sum(net.activation(data[0, :])), 1.5, 6)
         self.assertEqual(np.sum(net.activation(data[1, :])), 1.5, 6)
         self.assertEqual(np.sum(net.activation(data[:, 0])), 1.5, 6)
@@ -51,7 +51,7 @@ class TestHopfieldNumpy(unittest.TestCase):
             [3, -1, 0],
             [0, 0, 0]
         ])
-        net = hop.HopfieldNet(data, 1, 0)
+        net = hop.HopfieldNet(data, 1, 0, "Classic")
         b = net.activation(net.inputs[0, 1])
         c = net.activation(net.inputs[0, 2])
         self.assertAlmostEqual(net.get_a_update(0, 0), (b + c) * net.a, 6)
@@ -62,7 +62,7 @@ class TestHopfieldNumpy(unittest.TestCase):
             [0.01, 0.1, 1],
             [-0.1, 0, 0.1]
         ])
-        net = hop.HopfieldNet(data, 1, 0)
+        net = hop.HopfieldNet(data, 1, 0, "Classic")
         b = net.activation(net.inputs[0, 0])
         c = net.activation(net.inputs[2, 0])
         self.assertAlmostEqual(net.get_b_update(1, 0), (b + c) * net.b, 6)
@@ -73,7 +73,7 @@ class TestHopfieldNumpy(unittest.TestCase):
             [0.01, 0.1, 1],
             [-0.1, 0, 0.1]
         ])
-        net = hop.HopfieldNet(data, 1, 0)
+        net = hop.HopfieldNet(data, 1, 0, "Classic")
         manual_sum = 0.0
         manual_sum += net.activation(net.inputs[0, 0])
         manual_sum += net.activation(net.inputs[0, 1])
@@ -92,7 +92,7 @@ class TestHopfieldNumpy(unittest.TestCase):
         data = np.array([
             [0, 0.25, 0.8], [0.25, 0, 1], [0.8, 1, 0]
         ])
-        net = hop.HopfieldNet(data, 1, 0)
+        net = hop.HopfieldNet(data, 1, 0, "Classic")
         city1 = (net.activation(net.inputs[0, 0])
                  + net.activation(net.inputs[0, 2])) * net.distances[
                     1, 0]

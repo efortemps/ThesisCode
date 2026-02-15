@@ -1,6 +1,6 @@
 import unittest
 import math
-from inputProcessing import *
+from TSP_Experiment.src.inputProcessing import *
 
 class TestInput(unittest.TestCase): 
     def test_three_points(self):

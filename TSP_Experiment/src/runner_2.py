@@ -1,15 +1,13 @@
 import argparse
-from Hopfield import HopfieldNet
-from inputProcessing import read_data, distance_matrix, normalize, normalize_cords, distance
-from visualization import SimpleVisualizer
+from TSP_Experiment.src.Hopfield_2 import HopfieldNet
+from TSP_Experiment.src.inputProcessing import read_data, distance_matrix, normalize, normalize_cords, distance
+from TSP_Experiment.src.visualization import SimpleVisualizer
 
 def get_args():
     parser = argparse.ArgumentParser(description='Hopfield-Tank TSP Solver')
     parser.add_argument('--steps', type=int, default=5000, help='Number of steps')
     parser.add_argument('--freq', type=int, default=50, help='Snapshot frequency')
-    parser.add_argument('--method', type=str, default='Classic', help='Write Mandzukic if want to test other method')
     parser.add_argument('--seed', type=int, default=1, help='Random seed')
-    parser.add_argument('--sigma', type=float, default=0.0, help='Size adjustment')
     parser.add_argument('--data', type=str, default='data/cities.txt', help='Path to city data file')
     parser.add_argument('--video', action='store_true', help='Generate video')
     parser.add_argument('--fps', type=int, default=10, help='Video frame rate')
@@ -24,7 +22,6 @@ def main():
     print(f"Steps: {args.steps}")
     print(f"Snapshot frequency: {args.freq}")
     print(f"Seed: {args.seed}")
-    print(f"Size adjustment: {args.sigma}")
     print(f"Data file: {args.data}")
     print("="*60)
     
@@ -37,7 +34,7 @@ def main():
     
     # Initialize network
     print("\nInitializing Hopfield network...")
-    net = HopfieldNet(distances, args.seed, args.sigma, args.method)
+    net = HopfieldNet(distances, args.seed)
     print(f"✓ Network initialized ({len(distances)}×{len(distances)} neurons)")
     
     # Initialize visualizer
