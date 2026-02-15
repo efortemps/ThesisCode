@@ -1,5 +1,5 @@
 import unittest
-import src.Hopfield as hop 
+import TSP_Experiment.src.Hopfield as hop 
 import numpy as np
 
 
