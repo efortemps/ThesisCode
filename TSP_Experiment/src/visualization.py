@@ -50,7 +50,7 @@ class SimpleVisualizer:
         
         # Title with all parameters
         title = f"a={net_config['a']} b={net_config['b']} c={net_config['c']} d={net_config['d']} " \
-                f"alpha={net_config['alpha']} sigma={net_config['sigma']} timestep={net_config['timestep']} " \
+                f"u0={net_config['u0']} timestep={net_config['timestep']} " \
                 f"Snapshot {index}"
         plt.suptitle(title)
 

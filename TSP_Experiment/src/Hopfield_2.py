@@ -20,10 +20,10 @@ class HopfieldNet:
         self.size = len(distances)
 
         self.inputs_change = np.zeros([self.size, self.size], float)
-        self.a = 100
-        self.b = 100
-        self.c = 90
-        self.d = 110
+        self.a = 500
+        self.b = 500
+        self.c = 200
+        self.d = 500
 
         # alpha is the gain here
         self.u0 = 0.02
