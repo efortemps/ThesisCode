@@ -1,0 +1,12 @@
+cat > .gitignore <<'EOF'
+__pycache__/
+*.pyc
+.thesisEnv/
+thesisEnv/
+*.pdf
+output/
+images/
+TSP-Hopfield-Tank-master/
+*.mp4
+.DS_Store
+EOF
