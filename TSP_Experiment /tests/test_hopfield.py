@@ -54,7 +54,7 @@ class TestHopfieldNumpy(unittest.TestCase):
         net = hop.HopfieldNet(data, 1, 0)
         b = net.activation(net.inputs[0, 1])
         c = net.activation(net.inputs[0, 2])
-        self.assertAlmostEqual(net.get_a(0, 0), (b + c) * net.a, 6)
+        self.assertAlmostEqual(net.get_a_update(0, 0), (b + c) * net.a, 6)
 
     def test_get_b(self):
         data = np.array([
@@ -65,7 +65,7 @@ class TestHopfieldNumpy(unittest.TestCase):
         net = hop.HopfieldNet(data, 1, 0)
         b = net.activation(net.inputs[0, 0])
         c = net.activation(net.inputs[2, 0])
-        self.assertAlmostEqual(net.get_b(1, 0), (b + c) * net.b, 6)
+        self.assertAlmostEqual(net.get_b_update(1, 0), (b + c) * net.b, 6)
 
     def test_get_c(self):
         data = np.array([
@@ -84,9 +84,9 @@ class TestHopfieldNumpy(unittest.TestCase):
         manual_sum += net.activation(net.inputs[2, 0])
         manual_sum += net.activation(net.inputs[2, 1])
         manual_sum += net.activation(net.inputs[2, 2])
-        manual_sum -= net.size + net.size_adj
+        manual_sum -= net.size + net.sigma
         manual_sum *= net.c
-        self.assertAlmostEqual(net.get_c(), manual_sum, 6)
+        self.assertAlmostEqual(net.get_c_update(), manual_sum, 6)
 
     def test_get_d(self):
         data = np.array([
@@ -104,7 +104,7 @@ class TestHopfieldNumpy(unittest.TestCase):
                     1, 2]
 
         manual_sum = (city1 + city2 + city3) * net.d
-        self.assertEqual(net.get_d(1, 1), manual_sum)
+        self.assertEqual(net.get_d_update(1, 1), manual_sum)
 
 
 if __name__ == '__main__':

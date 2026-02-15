@@ -41,11 +41,9 @@ class TestInput(unittest.TestCase):
         self.assertAlmostEqual(matrix[3][3], 0.0, 1)
 
     def test_normalisation(self):
-        matrix = [
-            [1, 2, 3],
+        matrix = [[1, 2, 3],
             [4, 5, 6],
-            [7, 8, 10],
-        ]
+            [7, 8, 10]]
         matrix = normalize(matrix)
         self.assertAlmostEqual(matrix[0][0], 0.1)
         self.assertAlmostEqual(matrix[0][1], 0.2)
