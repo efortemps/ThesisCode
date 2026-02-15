@@ -1,6 +1,5 @@
 import matplotlib as plt 
 import numpy as np 
-import scipy.integrate as int
 import random 
 
 # Main city is X in our implementation
