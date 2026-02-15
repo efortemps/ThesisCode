@@ -1,5 +1,5 @@
 import unittest
-from src import Hopfield as hop 
+import src.Hopfield as hop 
 import numpy as np
 
 
