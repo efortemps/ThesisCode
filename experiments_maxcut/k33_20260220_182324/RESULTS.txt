@@ -1,0 +1,17 @@
+============================================================
+EXPERIMENT RESULTS — Hopfield-Tank Max-Cut
+============================================================
+
+Dataset  : k33
+Nodes    : 6
+
+Network Parameters:
+  u0: 0.05
+  tau: 1.0
+  timestep: 1e-05
+
+Binary cut value : 5.000000
+Final energy     : -0.000000
+
+Set A (s = +1) : [0, 4, 5]
+Set B (s = -1) : [1, 2, 3]
