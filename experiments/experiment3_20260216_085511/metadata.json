@@ -1,9 +1,9 @@
 {
-  "experiment_name": "experiment2_20260215_172853",
-  "timestamp": "20260215_172853",
+  "experiment_name": "experiment3_20260216_085511",
+  "timestamp": "20260216_085511",
   "dataset": {
-    "file": "TSP_Experiment/data/experiment2.txt",
-    "name": "experiment2",
+    "file": "TSP_Experiment/data/experiment3.txt",
+    "name": "experiment3",
     "n_cities": 10
   },
   "network_parameters": {
@@ -11,7 +11,7 @@
     "B": 500,
     "C": 200,
     "D": 500,
-    "u0_alpha": 0.02,
+    "u0_alpha": 0.1,
     "sigma": 0,
     "timestep": 1e-05
   },
@@ -22,19 +22,19 @@
   },
   "results": {
     "tour": [
-      4,
+      1,
       0,
+      2,
       5,
-      6,
+      7,
       7,
       8,
-      9,
-      3,
-      0,
-      2
+      6,
+      4,
+      4
     ],
-    "tour_distance": 3.479775846588573,
-    "final_energy": 1056.3545298769372,
+    "tour_distance": 2.3652348772405736,
+    "final_energy": 2086.510882459906,
     "is_valid_tour": false
   }
 }

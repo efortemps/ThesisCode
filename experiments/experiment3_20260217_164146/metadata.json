@@ -1,0 +1,40 @@
+{
+  "experiment_name": "experiment3_20260217_164146",
+  "timestamp": "20260217_164146",
+  "dataset": {
+    "file": "TSP_Experiment/data/experiment3.txt",
+    "name": "experiment3",
+    "n_cities": 10
+  },
+  "network_parameters": {
+    "A": 500,
+    "B": 500,
+    "C": 400,
+    "D": 500,
+    "u0_alpha": 0.1,
+    "sigma": 0,
+    "timestep": 1e-05
+  },
+  "simulation_settings": {
+    "steps": 1000,
+    "seed": 1,
+    "snapshot_frequency": 50
+  },
+  "results": {
+    "tour": [
+      1,
+      0,
+      3,
+      5,
+      9,
+      7,
+      8,
+      6,
+      4,
+      2
+    ],
+    "tour_distance": 3.0048079744033345,
+    "final_energy": 1351.985900688146,
+    "is_valid_tour": true
+  }
+}

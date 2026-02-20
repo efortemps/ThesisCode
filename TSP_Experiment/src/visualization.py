@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import subprocess as sp
 import os
 from pathlib import Path
+import shutil
 
 
 class SimpleVisualizer:
@@ -149,6 +150,7 @@ class SimpleVisualizer:
             sp.run(cmd, check=True)
             if Path(video_path).is_file():
                 print(f"✓ Video created: {video_path}")
+                shutil.rmtree(self.images_dir)
             else:
                 print("✗ Video creation failed")
         except FileNotFoundError:

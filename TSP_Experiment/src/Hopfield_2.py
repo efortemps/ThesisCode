@@ -20,13 +20,13 @@ class HopfieldNet:
         self.size = len(distances)
 
         self.inputs_change = np.zeros([self.size, self.size], float)
-        self.a = 500
-        self.b = 500
-        self.c = 200
+        self.a = 600
+        self.b = 600
+        self.c = 400
         self.d = 500
 
         # alpha is the gain here
-        self.u0 = 0.02
+        self.u0 = 0.05
         self.tau = 1
         self.timestep = 1e-5
         self.distances = distances
@@ -103,7 +103,7 @@ class HopfieldNet:
         way that the at least (and at most) N neurons of the network are activated (making sure that we visit at least N cities to avoid trivial solutions)
         """
         sum = np.sum(self.activation(self.u_Xi[:, :]))
-        sum -= self.size
+        sum -= self.size 
         return sum * self.c
     
     def get_D_update(self, main_city, position):
