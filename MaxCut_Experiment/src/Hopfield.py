@@ -13,7 +13,7 @@ class HopfieldNetMaxCut:
 
     """
 
-    def __init__(self, weight_matrix, seed=42):
+    def __init__(self, weight_matrix, seed=42, u0 = 0.05):
         """
         :param weight_matrix: Symmetric n×n weight/adjacency matrix of the graph.
                               w_ij >= 0, w_ii = 0.
@@ -25,7 +25,7 @@ class HopfieldNetMaxCut:
 
         self.n = len(weight_matrix)
         self.W = np.array(weight_matrix, dtype=float)
-        self.u0 = 0.05
+        self.u0 = u0
         self.tau = 1.0
         self.timestep = 1e-5
         self.u = self._init_inputs()
@@ -47,14 +47,14 @@ class HopfieldNetMaxCut:
 
     def _get_state_change(self):
         """
-        Compute du_i/dt for all nodes simultaneously (vectorised).
+        Compute du_i/dt for all nodes.
 
             du_i/dt = ( -u_i + sum_j w_ij * s_j ) / tau
 
         """
         s = self.activation(self.u) 
         drive = self.W @ s            
-        return (-self.u + drive) / self.tau
+        return (-self.u - drive) / self.tau
 
     def update(self):
         """
@@ -73,7 +73,7 @@ class HopfieldNetMaxCut:
 
         """
         s = self.activation(self.u)
-        E_quad = -0.5 * (s @ self.W @ s)
+        E_quad = 0.5 * (s @ self.W @ s)
 
         eps = 1e-10 
         s_c = np.clip(s, -1.0 + eps, 1.0 - eps)
@@ -91,7 +91,7 @@ class HopfieldNetMaxCut:
         Valid for s_i in (-1,+1); equals the exact integer cut when s_i in {-1,+1}.
         """
         s = self.activation(self.u)
-        return 0.5 * (np.sum(self.W) - s @ self.W @ s)
+        return 0.25 * (np.sum(self.W) - s @ self.W @ s)
 
     def get_binary_cut_value(self):
         """

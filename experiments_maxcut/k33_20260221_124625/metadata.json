@@ -1,0 +1,41 @@
+{
+  "experiment_name": "k33_20260221_124625",
+  "timestamp": "20260221_124625",
+  "dataset": {
+    "file": "MaxCut_Experiment/data/k33.txt",
+    "name": "k33",
+    "n_nodes": 6
+  },
+  "network_parameters": {
+    "u0": 0.05,
+    "tau": 1.0,
+    "timestep": 1e-05
+  },
+  "simulation_settings": {
+    "steps": 10000,
+    "seed": 42,
+    "snapshot_frequency": 500
+  },
+  "results": {
+    "partition": [
+      -1.0,
+      -1.0,
+      -1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "set_A": [
+      3,
+      4,
+      5
+    ],
+    "set_B": [
+      0,
+      1,
+      2
+    ],
+    "cut_value": 9.0,
+    "final_energy": -0.06296450681914773
+  }
+}

@@ -10,6 +10,7 @@ from MaxCut_Experiment.src.experiment_logger import MaxCutExperimentLogger
 
 def get_args():
     parser = argparse.ArgumentParser(description='Hopfield-Tank Max-Cut Solver')
+    parser.add_argument('--u0', type=float, default=0.05, help='Gain parameter for tanh activation (default 0.05)')
     parser.add_argument('--steps',  type=int,   default=300_000,
                         help='Number of Euler integration steps')
     parser.add_argument('--freq',   type=int,   default=3_000,
@@ -60,7 +61,7 @@ def main():
 
     # ---- Initialise network ----
     print("\nInitialising Hopfield-Tank Max-Cut network...")
-    net = HopfieldNetMaxCut(W, seed=args.seed)
+    net = HopfieldNetMaxCut(W, seed=args.seed, u0 = args.u0)
     print(f"✓ Network initialised ({n} neurons)")
 
     # ---- Initialise logger and visualizer ----

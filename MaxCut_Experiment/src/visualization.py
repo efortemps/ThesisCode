@@ -68,7 +68,7 @@ class MaxCutVisualizer:
             '-r',      str(fps),
             '-i',      image_pattern,
             '-vframes', str(len(self.snapshots)),
-            '-vf', 'pad=ceil(iw/2)*2:ceil(ih/2)*2'
+            '-vf', 'pad=ceil(iw/2)*2:ceil(ih/2)*2',
             '-vcodec', 'libx264',
             '-pix_fmt', 'yuv420p',
             video_path
