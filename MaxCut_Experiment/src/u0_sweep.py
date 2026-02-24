@@ -30,17 +30,6 @@ from MaxCut_Experiment.src.graph_utils import read_graph, random_graph, verify_c
 
 
 # ── U0 values to sweep ────────────────────────────────────────────────────────
-# Spans three regions:
-#   too small (over-saturation, risk of poor local minima)
-#   sweet spot (fast convergence to good cuts)
-#   too large  (dynamics stall; above u0_crit the origin is a stable fixed point)
-U0_VALUES = [
-    0.005, 0.01, 0.02, 0.05,
-    0.1, 0.2, 0.5,
-    1.0, 1.5, 2.0, 2.5,
-    3.0, 3.5, 4.0, 5.0
-]
-
 
 def get_args():
     parser = argparse.ArgumentParser(description='u0 parameter sweep for Max-Cut')
@@ -48,6 +37,8 @@ def get_args():
                         help='Euler steps per run')
     parser.add_argument('--seeds',  type=int,   default=5,
                         help='Number of random seeds per u0 value')
+    parser.add_argument('--n_u0',   type=int,   default=30,
+                        help='Number of u0 values to sweep')
     parser.add_argument('--data',   type=str,   default=None,
                         help='Path to graph edge-list file')
     parser.add_argument('--random', type=int,   default=None,
@@ -57,7 +48,6 @@ def get_args():
     parser.add_argument('--output', type=str,   default='experiments_maxcut/u0_sweep',
                         help='Output directory for plots and CSV')
     return parser.parse_args()
-
 
 def run_single(W, u0, seed, n_steps):
     """
@@ -73,6 +63,7 @@ def run_single(W, u0, seed, n_steps):
 def main():
     args = get_args()
     os.makedirs(args.output, exist_ok=True)
+    U0_VALUES = np.logspace(np.log10(0.005), np.log10(5.0), args.n_u0).tolist()
 
     # ── Load graph ────────────────────────────────────────────────────────────
     if args.data:
@@ -85,11 +76,6 @@ def main():
         raise ValueError("Provide --data <file>  or  --random <n_nodes>")
 
     n      = len(W)
-    # Theoretical critical u0: largest magnitude negative eigenvalue of W
-    # Above this value the bipartite cut mode is stable at zero → network stalls
-    eigvals   = np.linalg.eigvalsh(W)
-    u0_crit   = abs(float(np.min(eigvals)))   # most negative eigenvalue of W
-    max_cut_possible = 0.25 * np.sum(W)       # upper bound (all edges cut)
 
     print("=" * 60)
     print("U0 PARAMETER SWEEP — Hopfield-Tank Max-Cut")
@@ -97,12 +83,10 @@ def main():
     print(f"Graph           : {graph_label}  ({n} nodes)")
     print(f"Steps per run   : {args.steps}")
     print(f"Seeds per u0    : {args.seeds}")
-    print(f"Theoretical u0* : {u0_crit:.4f}  (dynamics stall above this)")
-    print(f"Max possible cut: {max_cut_possible:.1f}")
     print("=" * 60)
 
     # ── Sweep ─────────────────────────────────────────────────────────────────
-    results = []   # list of dicts, one per (u0, seed) run
+    results = []   
 
     total_runs = len(U0_VALUES) * args.seeds
     run_idx    = 0
@@ -158,10 +142,6 @@ def main():
                     alpha=0.25, color='steelblue', label='min/max across seeds')
     ax.plot(u0_arr, mean_cuts, 'o-', color='steelblue',
             linewidth=2, markersize=6, label='Mean cut value')
-    ax.axhline(max_cut_possible, color='green', linestyle='--', linewidth=1.2,
-               label=f'Max possible cut = {max_cut_possible:.0f}')
-    ax.axvline(u0_crit, color='red', linestyle=':', linewidth=1.5,
-               label=f'u0* = {u0_crit:.2f} (theoretical stall point)')
 
     ax.set_xscale('log')
     ax.set_xlabel('u0  (log scale)', fontsize=12)
@@ -181,9 +161,6 @@ def main():
 
     ax.plot(u0_arr, mean_energy, 's-', color='darkorange',
             linewidth=2, markersize=6, label='Mean final energy')
-    ax.axvline(u0_crit, color='red', linestyle=':', linewidth=1.5,
-               label=f'u0* = {u0_crit:.2f}')
-
     ax.set_xscale('log')
     ax.set_xlabel('u0  (log scale)', fontsize=12)
     ax.set_ylabel('Final Lyapunov energy E', fontsize=12)
@@ -202,7 +179,6 @@ def main():
     print("=" * 60)
     best_idx = int(np.argmax(mean_cuts))
     print(f"Best mean cut : {mean_cuts[best_idx]:.2f}  at  u0 = {U0_VALUES[best_idx]}")
-    print(f"Stall region  : u0 > {u0_crit:.4f}  (theoretical threshold)")
     print("=" * 60)
 
 

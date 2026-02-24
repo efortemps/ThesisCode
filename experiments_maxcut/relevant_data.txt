@@ -1,0 +1,2 @@
+first value with cut decrease u0 = 0.057019980098501614 (alpha = 17.54)
+value by which we start having consistently 11 as a max cut u0 = 0.07114152286071762 (alpha = 14.064)

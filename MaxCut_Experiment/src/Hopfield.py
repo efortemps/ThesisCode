@@ -34,7 +34,6 @@ class HopfieldNetMaxCut:
     def _init_inputs(self):
         """
         Initialise u near zero with a tiny random perturbation.
-        Mirrors TSP init_inputs(): centred value ± small noise to break symmetry.
         Without noise, all nodes would evolve identically -> trivial partition.
         """
         return np.array([(random.random() - 0.5) / 10000.0 for _ in range(self.n)])

@@ -71,7 +71,7 @@ def main():
     vis_output = logger.get_output_subdir('visualization')
     visualizer = MaxCutVisualizer(output_dir=vis_output)
 
-    # ---- Run simulation (mirrors TSP runner loop exactly) ----
+    # ---- Run simulation ----
     print("\nRunning simulation...")
     for step in range(args.steps):
         net.update()
