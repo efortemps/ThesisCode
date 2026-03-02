@@ -19,6 +19,11 @@ def get_args():
                         help='Random seed')
     parser.add_argument('--data',   type=str,   default=None,
                         help='Path to graph edge-list file (.txt)')
+    parser.add_argument('--init_mode',type=str,default='small_random',
+    choices=['small_random', 'large_random', 'bad_partition',
+             'ferromagnetic', 'min_eigenvec'],
+    help='Initialisation strategy for membrane potentials.')
+
     parser.add_argument('--random', type=int,   default=None,
                         help='Generate a random G(n,p) graph with this many nodes')
     parser.add_argument('--prob',   type=float, default=0.5,
@@ -61,7 +66,7 @@ def main():
 
     # ---- Initialise network ----
     print("\nInitialising Hopfield-Tank Max-Cut network...")
-    net = HopfieldNetMaxCut(W, seed=args.seed, u0 = args.u0)
+    net = HopfieldNetMaxCut(W, seed=args.seed, u0 = args.u0, init_mode=args.init_mode)
     print(f"✓ Network initialised ({n} neurons)")
 
     # ---- Initialise logger and visualizer ----

@@ -1,0 +1,21 @@
+============================================================
+EXPERIMENT RESULTS
+============================================================
+
+Dataset: experiment1
+Cities: 10
+
+Network Parameters:
+  A: 100
+  B: 100
+  C: 90
+  D: 100
+  u0_alpha: 0.001
+  sigma: 0
+  timestep: 1e-05
+
+Tour distance: 2.846457
+Final energy: 287.079595
+Valid tour: ✓ YES
+
+Tour: [6, 4, 0, 5, 8, 7, 3, 1, 2, 9]

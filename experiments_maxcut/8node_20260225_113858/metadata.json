@@ -1,0 +1,46 @@
+{
+  "experiment_name": "8node_20260225_113858",
+  "timestamp": "20260225_113858",
+  "dataset": {
+    "file": "MaxCut_Experiment/data/8node.txt",
+    "name": "8node",
+    "n_nodes": 8
+  },
+  "network_parameters": {
+    "u0": 0.05,
+    "tau": 1.0,
+    "timestep": 1e-05,
+    "initialisation method": "small_random"
+  },
+  "simulation_settings": {
+    "steps": 40000,
+    "seed": 42,
+    "snapshot_frequency": 500
+  },
+  "results": {
+    "partition": [
+      1.0,
+      -1.0,
+      -1.0,
+      1.0,
+      -1.0,
+      1.0,
+      1.0,
+      -1.0
+    ],
+    "set_A": [
+      0,
+      3,
+      5,
+      6
+    ],
+    "set_B": [
+      1,
+      2,
+      4,
+      7
+    ],
+    "cut_value": 10.0,
+    "final_energy": -7.721083220340275
+  }
+}

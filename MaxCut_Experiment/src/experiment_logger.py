@@ -46,6 +46,7 @@ class MaxCutExperimentLogger:
                 'u0':       net.u0,
                 'tau':      net.tau,
                 'timestep': net.timestep,
+                'initialisation method' : net.init_mode
             },
             'simulation_settings': {
                 'steps':              args.steps,

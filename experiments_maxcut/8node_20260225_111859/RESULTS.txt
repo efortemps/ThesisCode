@@ -1,0 +1,18 @@
+============================================================
+EXPERIMENT RESULTS — Hopfield-Tank Max-Cut
+============================================================
+
+Dataset  : 8node
+Nodes    : 8
+
+Network Parameters:
+  u0: 0.5
+  tau: 1.0
+  timestep: 1e-05
+  initialisation method: large_random
+
+Binary cut value : 4.000000
+Final energy     : 1.661652
+
+Set A (s = +1) : [1, 5]
+Set B (s = -1) : [0, 2, 3, 4, 6, 7]

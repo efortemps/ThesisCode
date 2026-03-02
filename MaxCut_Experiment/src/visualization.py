@@ -1,5 +1,5 @@
 import matplotlib
-matplotlib.use('Agg') 
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import subprocess as sp
@@ -11,46 +11,56 @@ import shutil
 class MaxCutVisualizer:
     """
     Snapshot visualizer for the Hopfield-Tank Max-Cut network.
-    Mirrors SimpleVisualizer from the TSP experiment.
 
     5-panel layout per snapshot:
-        1. Spin activations  s_i = tanh(u_i/u0) ∈ (-1,+1), coloured by side
-        2. Membrane potentials u_i per node
+        1. Spin activation trajectories  s_i(t) = tanh(u_i/u0) — one line per node
+        2. Membrane potential trajectories  u_i(t)              — one line per node
         3. Weight matrix W (heatmap)
         4. Graph partition drawing — circular layout, cut edges in green
         5. Energy and continuous cut value over time (twin-axis)
+
+    Panels 1 & 2 replace the previous bar plots with trajectory lines that
+    show how each node evolves from initialisation toward ±1 (or ±∞ for u).
+    Line colour: blue  → node converging to s = +1  (side A)
+                 red   → node converging to s = -1  (side B)
     """
 
     def __init__(self, output_dir='output'):
-        self.output_dir  = output_dir
-        self.images_dir  = os.path.join(output_dir, 'images')
+        self.output_dir = output_dir
+        self.images_dir = os.path.join(output_dir, 'images')
 
         os.makedirs(self.output_dir, exist_ok=True)
         os.makedirs(self.images_dir, exist_ok=True)
 
-        self.snapshots      = []
-        self.energy_history = []  
-        self.cut_history    = []   
+        self.snapshots = []
+        self.energy_history    = []
+        self.cut_history       = []
+
+        # ── NEW: full per-snapshot history for trajectory plots ──────────────
+        # activation_history[t] = list of n activation values at snapshot t
+        # input_history[t]      = list of n membrane potential values at snapshot t
+        self.activation_history = []
+        self.input_history      = []
 
     # ------------------------------------------------------------------
-    # Public interface (mirrors TSP SimpleVisualizer)
+    # Public interface
     # ------------------------------------------------------------------
 
     def add_snapshot(self, net_state, net_config):
         """
-        Store one snapshot.
-        Mirrors TSP add_snapshot(net_state, net_config).
+        Store one snapshot and append to the running trajectory histories.
+        The two new history lists grow by one row per call, enabling
+        trajectory plots that cover all snapshots up to the current one.
         """
         self.snapshots.append({'state': net_state, 'config': net_config})
         self.energy_history.append(net_state.get('energy',    None))
         self.cut_history.append(   net_state.get('cut_value', None))
 
+        # Accumulate per-node trajectories  ← NEW
+        self.activation_history.append(list(net_state['activations']))
+        self.input_history.append(      list(net_state['inputs']))
+
     def generate_images(self, W):
-        """
-        Generate all snapshot images.
-        Replaces TSP generate_images(coordinates, distances):
-        Max-Cut needs only the weight matrix W, not city coordinates.
-        """
         print(f"\nGenerating {len(self.snapshots)} images...")
         for idx, snapshot in enumerate(self.snapshots):
             self._plot_snapshot(idx, snapshot, W)
@@ -58,18 +68,17 @@ class MaxCutVisualizer:
         print("\nImages generated!")
 
     def generate_video(self, fps=10, video_name='hopfield_maxcut.mp4'):
-        """Generate video from images using ffmpeg (mirrors TSP generate_video)."""
         print("\nGenerating video with ffmpeg...")
         video_path    = os.path.join(self.output_dir, video_name)
         image_pattern = os.path.join(self.images_dir, 'img%d.png')
 
         cmd = [
             'ffmpeg', '-y', '-loglevel', 'error',
-            '-r',      str(fps),
-            '-i',      image_pattern,
+            '-r',       str(fps),
+            '-i',       image_pattern,
             '-vframes', str(len(self.snapshots)),
-            '-vf', 'pad=ceil(iw/2)*2:ceil(ih/2)*2',
-            '-vcodec', 'libx264',
+            '-vf',      'pad=ceil(iw/2)*2:ceil(ih/2)*2',
+            '-vcodec',  'libx264',
             '-pix_fmt', 'yuv420p',
             video_path
         ]
@@ -95,11 +104,17 @@ class MaxCutVisualizer:
         net_config = snapshot['config']
         n          = net_config['n_nodes']
 
-        activations = np.array(net_state['activations'])   # s_i ∈ (-1,+1)
-        inputs      = np.array(net_state['inputs'])         # u_i
+        # Current activations — used to assign final colour to each trajectory
+        current_s = np.array(net_state['activations'])
 
-        colors      = ['tab:blue' if s >= 0 else 'tab:red' for s in activations]
-        node_idx    = np.arange(n)
+        # Trajectory arrays up to this snapshot: shape (index+1, n)
+        s_traj = np.array(self.activation_history[:index + 1])   # (T, n)
+        u_traj = np.array(self.input_history[:index + 1])         # (T, n)
+        T      = s_traj.shape[0]
+        t_axis = np.arange(T)   # snapshot indices 0 … index
+
+        # Colour each node by its CURRENT sign so the partition is readable
+        node_colors = ['tab:blue' if s >= 0 else 'tab:red' for s in current_s]
 
         fig = plt.figure(figsize=(38, 8), dpi=50)
         plt.suptitle(
@@ -107,41 +122,56 @@ class MaxCutVisualizer:
             f"timestep={net_config['timestep']}  Snapshot {index}"
         )
 
-        # ---- 1. Spin activations ----
+        # ── 1. Spin activation trajectories ──────────────────────────────────
         ax1 = plt.subplot(1, 5, 1)
-        ax1.bar(node_idx, activations, color=colors)
-        ax1.axhline(0, color='k', linewidth=0.8, linestyle='--')
-        ax1.set_ylim(-1.1, 1.1)
-        ax1.set_xlabel('Node')
+        for node in range(n):
+            ax1.plot(t_axis, s_traj[:, node],
+                     color=node_colors[node], linewidth=1.2, alpha=0.85)
+            # Dot at current position
+            ax1.scatter([index], [s_traj[-1, node]],
+                        color=node_colors[node], s=30, zorder=5)
+
+        ax1.axhline( 1.0, color='k', linewidth=0.7, linestyle='--', alpha=0.5)
+        ax1.axhline(-1.0, color='k', linewidth=0.7, linestyle='--', alpha=0.5)
+        ax1.axhline( 0.0, color='k', linewidth=0.4, linestyle=':',  alpha=0.4)
+        ax1.set_ylim(-1.15, 1.15)
+        ax1.set_xlabel('Snapshot index')
         ax1.set_ylabel('s_i = tanh(u_i / u0)')
-        ax1.set_title('Spin Activations')
+        ax1.set_title('Spin Activation Trajectories')
+        ax1.grid(True, alpha=0.25)
 
-        # ---- 2. Membrane potentials ----
+        # ── 2. Membrane potential trajectories ───────────────────────────────
         ax2 = plt.subplot(1, 5, 2)
-        ax2.bar(node_idx, inputs, color=colors)
-        ax2.axhline(0, color='k', linewidth=0.8, linestyle='--')
-        ax2.set_xlabel('Node')
-        ax2.set_ylabel('u_i')
-        ax2.set_title('Membrane Potentials')
+        for node in range(n):
+            ax2.plot(t_axis, u_traj[:, node],
+                     color=node_colors[node], linewidth=1.2, alpha=0.85)
+            ax2.scatter([index], [u_traj[-1, node]],
+                        color=node_colors[node], s=30, zorder=5)
 
-        # ---- 3. Weight matrix heatmap ----
+        ax2.axhline(0.0, color='k', linewidth=0.4, linestyle=':', alpha=0.4)
+        ax2.set_xlabel('Snapshot index')
+        ax2.set_ylabel('u_i')
+        ax2.set_title('Membrane Potential Trajectories')
+        ax2.grid(True, alpha=0.25)
+
+        # ── 3. Weight matrix heatmap ──────────────────────────────────────────
         ax3 = plt.subplot(1, 5, 3)
-        im = ax3.imshow(W, cmap='plasma', interpolation='nearest')
+        im  = ax3.imshow(W, cmap='plasma', interpolation='nearest')
         plt.colorbar(im, ax=ax3)
         ax3.set_title('Weight Matrix W')
         ax3.set_xlabel('Node j')
         ax3.set_ylabel('Node i')
 
-        # ---- 4. Graph partition ----
+        # ── 4. Graph partition ────────────────────────────────────────────────
         ax4 = plt.subplot(1, 5, 4)
-        self._draw_partition(ax4, W, activations, n)
+        self._draw_partition(ax4, W, current_s, n)
         ax4.set_title('Graph Partition\n(blue = A, red = B, green = cut edges)')
         ax4.axis('off')
 
-        # ---- 5. Energy + cut evolution (twin-axis) ----
-        ax5 = plt.subplot(1, 5, 5)
-        valid_e = [e for e in self.energy_history[:index+1] if e is not None]
-        valid_c = [c for c in self.cut_history[:index+1]    if c is not None]
+        # ── 5. Energy + cut evolution (twin-axis) ─────────────────────────────
+        ax5    = plt.subplot(1, 5, 5)
+        valid_e = [e for e in self.energy_history[:index + 1] if e is not None]
+        valid_c = [c for c in self.cut_history[:index + 1]    if c is not None]
         if valid_e:
             t = list(range(len(valid_e)))
             ax5.plot(t, valid_e, 'b-', linewidth=2, label='Energy')
@@ -154,18 +184,19 @@ class MaxCutVisualizer:
         ax5.set_ylabel('Energy E', color='blue')
         ax5.set_title(
             f"Energy & Cut\n"
-            f"E={net_state['energy']:.4f}   Cut={net_state['cut_value']:.2f}"
+            f"E={net_state['energy']:.4f}  Cut={net_state['cut_value']:.2f}"
         )
         ax5.grid(True, alpha=0.3)
 
-        plt.savefig(os.path.join(self.images_dir, f'img{index}.png'))
+        plt.savefig(os.path.join(self.images_dir, f'img{index}.png'),
+                    bbox_inches=None)
         plt.close()
 
     def _draw_partition(self, ax, W, activations, n):
         """
-        Draw the graph on a circular layout.
-        Nodes coloured blue (side A, s>=0) or red (side B, s<0).
-        Cut edges drawn in green; within-partition edges in light grey.
+        Circular graph layout.
+        Blue nodes → side A (s >= 0), red → side B (s < 0).
+        Green edges → cut, light grey → within partition.
         """
         angles    = np.linspace(0, 2 * np.pi, n, endpoint=False)
         pos       = np.column_stack([np.cos(angles), np.sin(angles)])
