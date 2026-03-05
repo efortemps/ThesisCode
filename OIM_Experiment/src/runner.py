@@ -40,7 +40,7 @@ def get_args():
                         help='Generate an mp4 video from snapshots (requires ffmpeg)')
     parser.add_argument('--fps', type=int, default=10,
                         help='Frames per second for the video')
-    parser.add_argument('--output', type=str, default='experiments_maxcut',
+    parser.add_argument('--output', type=str, default='experiments_MaxCut_OIM',
                         help='Base output directory')
     return parser.parse_args()
 
@@ -116,7 +116,7 @@ def main():
     partition    = net.get_partition().tolist()
     binary_cut   = net.get_binary_cut_value()
     final_energy = net.get_energy()
-    verified_cut = verify_cut(W, np.array(partition))   # independent check
+    verified_cut = verify_cut(W, np.array(partition)) 
 
     set_A = [i for i, s in enumerate(partition) if s ==  1]
     set_B = [i for i, s in enumerate(partition) if s == -1]
@@ -126,10 +126,6 @@ def main():
     print(f'Final Lyapunov energy       : {final_energy:.6f}')
     print(f'Partition A ({len(set_A)} nodes): {set_A}')
     print(f'Partition B ({len(set_B)} nodes): {set_B}')
-
-    # ---- Log results ----
-    logger.log_results(partition, binary_cut, final_energy)
-    logger.append_to_comparison_csv()
 
     print(f'\n✓ All results saved to: {experiment_dir}')
     print('=' * 60)

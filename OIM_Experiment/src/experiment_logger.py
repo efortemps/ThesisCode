@@ -11,7 +11,7 @@ class MaxCutExperimentLogger:
     for the OIM Max-Cut solver.
     """
 
-    def __init__(self, base_output_dir='experiments_maxcut'):
+    def __init__(self, base_output_dir='experiments_MaxCut_OIM'):
         self.base_output_dir = base_output_dir
         self.experiment_dir: str | None = None
         self.metadata = {}
@@ -111,29 +111,4 @@ class MaxCutExperimentLogger:
         os.makedirs(path, exist_ok=True)
         return path
 
-    def append_to_comparison_csv(self):
-        """
-        Append this experiment to a global CSV for easy cross-run comparison.
-        """
-        assert self.experiment_dir is not None, 'Call start_experiment() first'
-        csv_path = os.path.join(self.base_output_dir, 'all_experiments.csv')
-        file_exists = os.path.isfile(csv_path)
-
-        with open(csv_path, 'a', newline='') as f:
-            writer = csv.writer(f)
-            if not file_exists:
-                writer.writerow(['timestamp', 'dataset', 'n_nodes',
-                                  'K', 'Ks', 'coupling',
-                                  'steps', 'cut_value', 'energy'])
-            r = self.metadata
-            writer.writerow([
-                r['timestamp'],
-                r['dataset']['name'],
-                r['dataset']['n_nodes'],
-                r['network_parameters']['K'],
-                r['network_parameters']['Ks'],
-                r['network_parameters']['coupling'],
-                r['simulation_settings']['steps'],
-                r['results']['cut_value'],
-                r['results']['final_energy'],
-            ])
+    

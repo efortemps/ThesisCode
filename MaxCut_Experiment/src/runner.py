@@ -32,7 +32,7 @@ def get_args():
                         help='Generate an mp4 video from snapshots (requires ffmpeg)')
     parser.add_argument('--fps',    type=int,   default=10,
                         help='Frames per second for the video')
-    parser.add_argument('--output', type=str,   default='experiments_maxcut',
+    parser.add_argument('--output', type=str,   default='experiments_MaxCut_Hop',
                         help='Base output directory')
     return parser.parse_args()
 

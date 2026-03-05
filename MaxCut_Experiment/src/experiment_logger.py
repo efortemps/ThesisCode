@@ -11,7 +11,7 @@ class MaxCutExperimentLogger:
     for the Hopfield-Tank Max-Cut solver.
     """
 
-    def __init__(self, base_output_dir='experiments_maxcut'):
+    def __init__(self, base_output_dir='experiments_MaxCut_Hop'):
         self.base_output_dir = base_output_dir
         self.experiment_dir: str | None = None
         self.metadata = {}
