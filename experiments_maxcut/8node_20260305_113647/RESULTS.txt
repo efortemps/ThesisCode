@@ -1,0 +1,19 @@
+============================================================
+EXPERIMENT RESULTS — OIM Max-Cut
+============================================================
+
+Dataset  : 8node
+Nodes    : 8
+
+Network Parameters:
+  K: 1.0
+  Ks: 2.0
+  coupling: cosine_shil
+  timestep: 0.01
+  init_mode: small_random
+
+Binary cut value : 4.000000
+Final energy     : 4.000000
+
+Set A (sigma = +1) : [1, 2, 5, 6]
+Set B (sigma = -1) : [0, 3, 4, 7]
