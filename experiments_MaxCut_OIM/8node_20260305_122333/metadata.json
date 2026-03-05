@@ -1,0 +1,21 @@
+{
+  "experiment_name": "8node_20260305_122333",
+  "timestamp": "20260305_122333",
+  "dataset": {
+    "file": "OIM_Experiment/data/8node.txt",
+    "name": "8node",
+    "n_nodes": 8
+  },
+  "network_parameters": {
+    "K": 1.0,
+    "Ks": 1.0,
+    "coupling": "cosine_shil",
+    "timestep": 0.01,
+    "init_mode": "small_random"
+  },
+  "simulation_settings": {
+    "steps": 5000,
+    "seed": 42,
+    "snapshot_frequency": 100
+  }
+}

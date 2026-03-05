@@ -1,6 +1,6 @@
 {
-  "experiment_name": "8node_20260305_120940",
-  "timestamp": "20260305_120940",
+  "experiment_name": "8node_20260305_122517",
+  "timestamp": "20260305_122517",
   "dataset": {
     "file": "OIM_Experiment/data/8node.txt",
     "name": "8node",
@@ -8,7 +8,7 @@
   },
   "network_parameters": {
     "K": 1.0,
-    "Ks": 0.5,
+    "Ks": 2.0,
     "coupling": "cosine_shil",
     "timestep": 0.01,
     "init_mode": "small_random"

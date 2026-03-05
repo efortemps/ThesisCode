@@ -35,9 +35,6 @@ class MaxCutVisualizer:
         self.energy_history = []
         self.cut_history    = []
 
-        # Per-snapshot trajectory histories.
-        # activation_history[t] = list of n  cos(theta_i)  values at snapshot t
-        # phase_history[t]      = list of n  theta_i       values at snapshot t
         self.activation_history = []
         self.phase_history      = []
 
@@ -122,7 +119,7 @@ class MaxCutVisualizer:
         )
 
         # ── 1. Soft-spin trajectories  cos(theta_i) ──────────────────────
-        ax1 = plt.subplot(1, 5, 1)
+        ax1 = plt.subplot(1, 4, 1)
         for node in range(n):
             ax1.plot(t_axis, s_traj[:, node],
                      color=node_colors[node], linewidth=1.2, alpha=0.85)
@@ -141,7 +138,7 @@ class MaxCutVisualizer:
         ax1.grid(True, alpha=0.25)
 
         # ── 2. Phase trajectories  theta_i ───────────────────────────────
-        ax2 = plt.subplot(1, 5, 2)
+        ax2 = plt.subplot(1, 4, 2)
         for node in range(n):
             ax2.plot(t_axis, theta_traj[:, node],
                      color=node_colors[node], linewidth=1.2, alpha=0.85)
@@ -155,27 +152,21 @@ class MaxCutVisualizer:
                      label='theta = pi (spin -1)')
         ax2.axhline(-np.pi,    color='k', linewidth=0.4, linestyle=':',  alpha=0.3)
         ax2.axhline( 2*np.pi,  color='k', linewidth=0.4, linestyle=':',  alpha=0.3)
+        ax2.set_ylim(-2*np.pi, 2*np.pi)
         ax2.set_xlabel('Snapshot index')
         ax2.set_ylabel('theta_i  (rad)')
         ax2.set_title('Phase Trajectories')
         ax2.grid(True, alpha=0.25)
 
-        # ── 3. Weight matrix heatmap ──────────────────────────────────────
-        ax3 = plt.subplot(1, 5, 3)
-        im = ax3.imshow(W, cmap='plasma', interpolation='nearest')
-        plt.colorbar(im, ax=ax3)
-        ax3.set_title('Weight Matrix W')
-        ax3.set_xlabel('Node j')
-        ax3.set_ylabel('Node i')
 
-        # ── 4. Graph partition ────────────────────────────────────────────
-        ax4 = plt.subplot(1, 5, 4)
+        # ── 3. Graph partition ────────────────────────────────────────────
+        ax4 = plt.subplot(1, 4, 3)
         self._draw_partition(ax4, W, current_s, n)
         ax4.set_title('Graph Partition\n(blue = A, red = B, green = cut edges)')
         ax4.axis('off')
 
-        # ── 5. Lyapunov energy + cut value (twin-axis) ────────────────────
-        ax5 = plt.subplot(1, 5, 5)
+        # ── 4. Lyapunov energy + cut value (twin-axis) ────────────────────
+        ax5 = plt.subplot(1, 4, 4)
         valid_e = [e for e in self.energy_history[:index + 1] if e is not None]
         valid_c = [c for c in self.cut_history[:index + 1]    if c is not None]
         if valid_e:
