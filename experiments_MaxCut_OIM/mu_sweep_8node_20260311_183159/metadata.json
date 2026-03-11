@@ -1,0 +1,23 @@
+{
+  "experiment_name": "mu_sweep_8node_20260311_183159",
+  "experiment_type": "mu_sweep",
+  "timestamp": "20260311_183159",
+  "dataset": {
+    "file": "OIM_Experiment/data/8node.txt",
+    "name": "8node",
+    "n_nodes": 8
+  },
+  "sweep_parameters": {
+    "mu_min": 0.001,
+    "mu_max": 15.0,
+    "n_mu": 2000,
+    "steps_per_mu": 8000,
+    "binarization_tol": 1e-06,
+    "seed": 42,
+    "init_mode": "small_random"
+  },
+  "results_summary": {
+    "n_mu_values": 2000,
+    "fraction_binarized": 0.8725
+  }
+}

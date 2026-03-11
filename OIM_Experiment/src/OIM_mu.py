@@ -124,7 +124,7 @@ class OIMMaxCut:
         L = sum_{i<j} W_ij cos(theta_i - theta_j) + (mu/2) sum_i sin^2(theta_i)
         """
         diff = self.theta[:, None] - self.theta[None, :]
-        coupling = 0.5 * np.sum(self.W * np.cos(diff))   # factor 0.5: each edge counted twice
+        coupling = 0.5 * np.sum(self.W * np.cos(diff))
         penalty = (self.mu / 2.0) * np.sum(np.sin(self.theta) ** 2)
         return coupling + penalty
 
