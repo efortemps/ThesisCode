@@ -1,0 +1,6 @@
+# 3-node circular graph
+# Max Cut = 2
+3
+0 1
+1 2
+2 0

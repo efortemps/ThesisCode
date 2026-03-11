@@ -220,3 +220,131 @@ class MaxCutVisualizer:
 
         ax.set_xlim(-1.5, 1.5)
         ax.set_ylim(-1.5, 1.5)
+
+
+# =============================================================================
+# MuSweepVisualizer — mu-sweep experiment
+# =============================================================================
+
+class MuSweepVisualizer:
+    """
+    Generates a 3-panel summary figure for a mu-sweep experiment.
+
+    Panel 1 — Binarization residual  max_i |sin(theta_i)|  vs mu.
+              Green shading marks the binarized region (residual < tol).
+    Panel 2 — Final phases theta_i / pi  vs mu  (one line per node).
+              Dashed reference lines at 0 and 1 (= pi).
+    Panel 3 — Final binary cut value  vs mu.
+              Plus minimum Hessian eigenvalue (twin axis) to link
+              binarization to the curvature of the energy landscape.
+    """
+
+    def __init__(self, output_dir="output"):
+        self.output_dir = output_dir
+        os.makedirs(output_dir, exist_ok=True)
+
+    def generate_sweep_plot(self, results, W, dataset_name="graph", tol=1e-2):
+        """
+        Parameters
+        ----------
+        results      : dict returned by runner_mu_sweep.main()
+        W            : weight matrix (for graph metadata)
+        dataset_name : string used in the figure title
+        tol          : binarization threshold drawn as a reference line
+
+        Returns
+        -------
+        path : str  path to the saved PNG
+        """
+        mu_values   = np.array(results["mu"])
+        residuals   = np.array(results["binarization_residual"])
+        binarized   = np.array(results["is_binarized"])
+        phases_arr  = np.array(results["phases"])          # (n_mu, n_nodes)
+        cut_values  = np.array(results["binary_cut_value"])
+        eigs        = results["hessian_eigenvalues"]       # list of lists
+        min_eigs    = np.array([min(e) for e in eigs])
+
+        n_nodes = phases_arr.shape[1]
+        n_edges = int(np.sum(W > 0) / 2)
+
+        NODE_COLORS = plt.get_cmap('tab10')(np.linspace(0, 0.9, n_nodes))
+        fig, axes = plt.subplots(3, 1, figsize=(11, 13))
+        fig.suptitle(
+            f"OIM $\\mu$-sweep  —  {dataset_name}  "
+            f"({n_nodes} nodes, {n_edges} edges)",
+            fontsize=13, fontweight="bold", y=0.98
+        )
+
+        # ── Panel 1: binarization residual ──────────────────────────
+        ax = axes[0]
+        ax.plot(mu_values, residuals, color="#2563EB", lw=2,
+                label=r"$\max_i |\sin(\theta_i)|$")
+        ax.axhline(tol, color="crimson", ls="--", lw=1.3,
+                   label=f"tol = {tol}")
+        ax.fill_between(mu_values, 0, residuals.max(),
+                        where=binarized, color="#22C55E", alpha=0.18,
+                        label="binarized region")
+        # mark first binarized mu
+        if binarized.any():
+            mu_first = mu_values[binarized][0]
+            ax.axvline(mu_first, color="#16A34A", ls=":", lw=1.5,
+                       label=f"first binarized $\\mu$={mu_first:.2f}")
+        ax.set_ylabel("Binarization residual", fontsize=10)
+        ax.set_title(r"Binarization residual vs $\mu$", fontsize=10)
+        ax.legend(fontsize=8, loc="upper right")
+        ax.set_xlim(mu_values[0], mu_values[-1])
+        ax.set_ylim(bottom=0)
+        ax.grid(True, alpha=0.25)
+
+        # ── Panel 2: final phases ────────────────────────────────────
+        ax = axes[1]
+        for i in range(n_nodes):
+            ax.plot(mu_values, phases_arr[:, i] / np.pi,
+                    color=NODE_COLORS[i], lw=1.6,
+                    label=f"$\\theta_{{{i+1}}}/\\pi$")
+        ax.axhline(0, color="gray", ls=":", lw=1, alpha=0.7)
+        ax.axhline(1, color="gray", ls=":", lw=1, alpha=0.7,
+                   label="target $\\{0, \\pi\\}$")
+        if binarized.any():
+            ax.axvline(mu_values[binarized][0], color="#16A34A",
+                       ls=":", lw=1.5)
+        ax.set_ylabel(r"$\theta_i / \pi$", fontsize=10)
+        ax.set_title(r"Final phases vs $\mu$", fontsize=10)
+        ncol = max(1, n_nodes // 6)
+        ax.legend(fontsize=7, loc="upper right", ncol=ncol)
+        ax.set_xlim(mu_values[0], mu_values[-1])
+        ax.grid(True, alpha=0.25)
+
+        # ── Panel 3: binary cut value + min Hessian eigenvalue ──────
+        ax = axes[2]
+        ax.plot(mu_values, cut_values, color="#7C3AED", lw=2,
+                label="Binary cut value")
+        if binarized.any():
+            ax.axvline(mu_values[binarized][0], color="#16A34A",
+                       ls=":", lw=1.5)
+        ax.set_ylabel("Binary cut value", fontsize=10, color="#7C3AED")
+        ax.tick_params(axis="y", labelcolor="#7C3AED")
+
+        ax2 = ax.twinx()
+        ax2.plot(mu_values, min_eigs, color="#EA580C", lw=1.5,
+                 ls="--", label=r"$\lambda_{\min}(H_\mu)$")
+        ax2.axhline(0, color="#EA580C", ls=":", lw=0.8, alpha=0.5)
+        ax2.set_ylabel(r"Min Hessian eigenvalue $\lambda_{\min}$",
+                       fontsize=10, color="#EA580C")
+        ax2.tick_params(axis="y", labelcolor="#EA580C")
+
+        lines1, labels1 = ax.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax.legend(lines1 + lines2, labels1 + labels2,
+                  fontsize=8, loc="lower right")
+        ax.set_xlabel(r"$\mu$", fontsize=11)
+        ax.set_title(r"Binary cut value and min Hessian eigenvalue vs $\mu$",
+                     fontsize=10)
+        ax.set_xlim(mu_values[0], mu_values[-1])
+        ax.grid(True, alpha=0.25)
+
+        plt.tight_layout(rect=(0, 0, 1, 0.97))
+        path = os.path.join(self.output_dir, "mu_sweep.png")
+        plt.savefig(path, dpi=150, bbox_inches="tight")
+        plt.close()
+        return path

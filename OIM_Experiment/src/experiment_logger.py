@@ -110,5 +110,108 @@ class MaxCutExperimentLogger:
         path = os.path.join(self.experiment_dir, subdir_name)
         os.makedirs(path, exist_ok=True)
         return path
+    
+    def start_mu_sweep_experiment(self, args, dataset_name, n_nodes):
+        """
+        Create a timestamped experiment directory for a mu-sweep run.
+
+        Parameters
+        ----------
+        args        : argparse.Namespace  (from runner_mu_sweep.get_args())
+        dataset_name: str
+        n_nodes     : int
+        """
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        exp_name  = f"mu_sweep_{dataset_name}_{timestamp}"
+
+        self.experiment_dir = os.path.join(self.base_output_dir, exp_name)
+        os.makedirs(self.experiment_dir, exist_ok=True)
+
+        self.metadata = {
+            "experiment_name": exp_name,
+            "experiment_type": "mu_sweep",
+            "timestamp":       timestamp,
+            "dataset": {
+                "file":    args.data if args.data else "random",
+                "name":    dataset_name,
+                "n_nodes": n_nodes,
+            },
+            "sweep_parameters": {
+                "mu_min":           args.mu_min,
+                "mu_max":           args.mu_max,
+                "n_mu":             args.n_mu,
+                "steps_per_mu":     args.steps,
+                "binarization_tol": args.binarization_tol,
+                "seed":             args.seed,
+                "init_mode":        args.init_mode,
+            },
+        }
+        self._save_metadata()
+        return self.experiment_dir
+
+    def log_mu_sweep_results(self, results, experiment_dir=None):
+        """
+        Save per-mu sweep results to a CSV file.
+
+        Parameters
+        ----------
+        results        : dict with keys mu, binarization_residual,
+                         is_binarized, energy, binary_cut_value,
+                         hessian_eigenvalues, gradient_norm, phases.
+        experiment_dir : override path (defaults to self.experiment_dir).
+
+        Returns
+        -------
+        csv_path : str
+        """
+        out_dir  = experiment_dir or self.experiment_dir
+        # Check if out_dir is None and provide a default
+        if out_dir is None:
+            out_dir = "."  # or whatever default path you want
+
+        csv_path = os.path.join(out_dir, "mu_sweep_results.csv")
+
+        mu_arr   = results["mu"]
+        n_rows   = len(mu_arr)
+        n_nodes  = len(results["phases"][0])
+
+        with open(csv_path, "w", newline="") as f:
+            phase_headers = [f"theta_{i}" for i in range(n_nodes)]
+            eig_headers   = [f"hess_eig_{i}" for i in range(n_nodes)]
+            fieldnames = (
+                ["mu", "binarization_residual", "is_binarized",
+                 "energy", "binary_cut_value", "gradient_norm"]
+                + phase_headers
+                + eig_headers
+            )
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+
+            for k in range(n_rows):
+                row = {
+                    "mu":                    results["mu"][k],
+                    "binarization_residual": results["binarization_residual"][k],
+                    "is_binarized":          int(results["is_binarized"][k]),
+                    "energy":                results["energy"][k],
+                    "binary_cut_value":      results["binary_cut_value"][k],
+                    "gradient_norm":         results["gradient_norm"][k],
+                }
+                for i, h in enumerate(phase_headers):
+                    row[h] = results["phases"][k][i]
+                for i, h in enumerate(eig_headers):
+                    row[h] = results["hessian_eigenvalues"][k][i]
+                writer.writerow(row)
+
+        # also persist in metadata
+        if self.experiment_dir:
+            self.metadata["results_summary"] = {
+                "n_mu_values":      n_rows,
+                "fraction_binarized": float(
+                    sum(results["is_binarized"]) / n_rows
+                ),
+            }
+            self._save_metadata()
+
+        return csv_path
 
     
