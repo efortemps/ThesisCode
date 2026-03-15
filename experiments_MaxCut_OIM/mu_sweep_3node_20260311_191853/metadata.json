@@ -1,0 +1,23 @@
+{
+  "experiment_name": "mu_sweep_3node_20260311_191853",
+  "experiment_type": "mu_sweep",
+  "timestamp": "20260311_191853",
+  "dataset": {
+    "file": "OIM_Experiment/data/3node.txt",
+    "name": "3node",
+    "n_nodes": 3
+  },
+  "sweep_parameters": {
+    "mu_min": 0.001,
+    "mu_max": 6.0,
+    "n_mu": 2000,
+    "steps_per_mu": 8000,
+    "binarization_tol": 1e-06,
+    "seed": 42,
+    "init_mode": "small_random"
+  },
+  "results_summary": {
+    "n_mu_values": 2000,
+    "fraction_binarized": 0.7765
+  }
+}
