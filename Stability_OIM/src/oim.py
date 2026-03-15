@@ -387,3 +387,114 @@ class OscillatorIsingMachine:
         List of sol objects (one per initial condition).
         """
         return [self.simulate(phi0, t_span, n_points) for phi0 in phi0_list]
+    
+
+    # ------------------------------------------------------------------
+    # Binarization & graph utilities
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def build_king_graph(n: int) -> np.ndarray:
+        """
+        Build the J coupling matrix for an n×n King graph.
+
+        Every node connects to all 8 neighbours (horizontal, vertical,
+        diagonal). Coupling weights are all -1 (anti-ferromagnetic),
+        matching the unweighted convention of the paper.
+
+        Node numbering is row-major: node i = row r, column c  →  i = r*n + c.
+
+        Parameters
+        ----------
+        n : side length of the grid (total spins = n*n)
+
+        Returns
+        -------
+        J : (n*n, n*n) symmetric coupling matrix with entries in {-1, 0}.
+        """
+        N = n * n
+        J = np.zeros((N, N), dtype=float)
+        for r in range(n):
+            for c in range(n):
+                i = r * n + c
+                for dr in [-1, 0, 1]:
+                    for dc in [-1, 0, 1]:
+                        if dr == 0 and dc == 0:
+                            continue
+                        nr_, nc_ = r + dr, c + dc
+                        if 0 <= nr_ < n and 0 <= nc_ < n:
+                            j = nr_ * n + nc_
+                            J[i, j] = -1.0
+        return J
+
+    def enumerate_type1_equilibria(self) -> list:
+        """
+        Enumerate all 2^N Type I M2 equilibria of an N-spin OIM.
+
+        Type I M2 equilibria have every phase in {0, π} (Definition 1,
+        Theorem 1 of the paper). There are exactly 2^N such points.
+
+        Returns
+        -------
+        List of (N,) numpy arrays, each a valid Type I M2 equilibrium.
+
+        Note
+        ----
+        For large N (> ~20) this becomes memory-intensive. Use with care.
+        """
+        from itertools import product as iproduct
+        return [np.array([b * np.pi for b in bits], dtype=float)
+                for bits in iproduct([0, 1], repeat=self.N)]
+
+    def binarization_threshold(self) -> float:
+        """
+        Compute the global binarization threshold from Remark 7.
+
+        The threshold is the minimum stability threshold taken over all
+        2^N Type I equilibria:
+
+            Ks_binarize = min_{φ*} { K * λ_max(D(φ*)) / 2 }
+
+        If Ks > Ks_binarize, at least one Type I equilibrium is
+        asymptotically stable → binarization is guaranteed.
+        If Ks < Ks_binarize, no Type I equilibrium is stable →
+        binarization cannot occur.
+
+        Returns
+        -------
+        float : the binarization threshold Ks*.
+
+        Warning
+        -------
+        Complexity is O(2^N × N^3). Feasible up to N ≈ 18.
+        """
+        equil = self.enumerate_type1_equilibria()
+        return float(min(self.stability_threshold(phi) for phi in equil))
+
+    def hamiltonian(self, phi: np.ndarray) -> float:
+        """
+        Evaluate the Ising Hamiltonian H at phase configuration phi.
+
+            H = -sum_{i<j} J_ij * s_i * s_j
+
+        where s_i = cos(phi_i), so s_i ≈ +1 for phi_i = 0
+        and s_i ≈ -1 for phi_i = π.
+
+        This differs from self.energy() which also includes the K, Ks
+        coupling prefactors and the SYNC term. Use hamiltonian() to
+        compare directly with the Ising spin-assignment cost reported
+        in the paper (e.g., the H = -8 vs H = -8.085 values in
+        Experiment B).
+
+        Parameters
+        ----------
+        phi : phase vector (N,)
+
+        Returns
+        -------
+        float : Ising Hamiltonian value H(phi)
+        """
+        phi = np.asarray(phi, dtype=float)
+        s   = np.cos(phi)   # s_i ∈ (-1, +1), exactly ±1 at binarized phases
+        # vectorised upper-triangle sum
+        return float(-0.5 * (s @ self.J @ s))
