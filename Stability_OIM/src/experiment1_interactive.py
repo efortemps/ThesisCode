@@ -42,10 +42,11 @@ all_trajs, all_stab = {}, {}
 for Ks in Ks_values:
     oim  = OscillatorIsingMachine(J, K, Ks)
     sols = oim.simulate_many(phi0_list, t_span=T_SPAN, n_points=N_POINTS)
-    key  = float(round(Ks, 8))
-    all_trajs[key] = sols
-    all_stab[key]  = {name: oim.stability_analysis(phi_star, verbose=False)
-                      for name, phi_star in equilibria}
+    idx = int(np.searchsorted(Ks_values, Ks))   # integer index as key
+    all_trajs[idx] = sols
+    all_stab[idx]  = {name: oim.stability_analysis(phi_star, verbose=False)
+                  for name, phi_star in equilibria}
+
     pct = 100 * (np.searchsorted(Ks_values, Ks) + 1) / N_KS
     print(f"  [{pct:5.1f}%]  Ks = {Ks:.3f}  ✓", flush=True)
 
@@ -125,9 +126,10 @@ def draw_phase(Ks):
     ax_phase.clear()
     ax_phase.set_facecolor(PANEL)
 
-    key  = float(Ks_values[int(np.argmin(np.abs(Ks_values - Ks)))])
-    sols = all_trajs[key]
-    stab = all_stab[key]
+    idx  = int(np.argmin(np.abs(Ks_values - Ks))) 
+    sols = all_trajs[idx]
+    stab = all_stab[idx]
+    key  = Ks_values[idx]                            
 
     # Trajectories
     for idx, sol in enumerate(sols):
