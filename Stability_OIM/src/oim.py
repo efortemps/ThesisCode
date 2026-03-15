@@ -280,6 +280,63 @@ class OscillatorIsingMachine:
         D            = self.build_D(phi_star)
         lambda_max_D = float(np.linalg.eigvalsh(D).max())
         return self.K * lambda_max_D / 2.0
+    
+    def estimate_domain_of_attraction(self, phi_star: np.ndarray) -> float:
+        """
+        Estimates the radius of the domain of attraction for a Type I M2 equilibrium
+        according to Theorem 7 of Cheng et al. Returns R such that ||phi(0) - phi*||_2 < R
+        guarantees asymptotic convergence to phi*.
+        """
+        import scipy.optimize
+        phi_star = np.asarray(phi_star, dtype=float)
+
+        # Identify sets of nodes with phase ~ 0 and phase ~ pi (mod 2pi)
+        # Type I M2 equilibria consist of phases in {0, pi}
+        cos_phi = np.cos(phi_star)
+        group_0 = np.where(cos_phi > 0.9)[0]
+        group_pi = np.where(cos_phi < -0.9)[0]
+
+        max_lambda = 0.0
+
+        # Build Q* components for both phase groups
+        for group in (group_0, group_pi):
+            if len(group) == 0:
+                continue
+                
+            # J_sub extracts exactly the subset of edges defined by set I_2
+            # (edges between nodes that share the same phase)
+            J_sub = self.J[np.ix_(group, group)]
+            
+            if not np.any(J_sub != 0):
+                continue
+
+            # M corresponds to the non-beta part of the Q* matrix in Eq 18
+            # M = -2K * (diag(J_sub * 1) - J_sub)
+            row_sums = np.sum(J_sub, axis=1)
+            M = -2.0 * self.K * (np.diag(row_sums) - J_sub)
+
+            eigvals = np.linalg.eigvalsh(M)
+            max_lambda = max(max_lambda, float(eigvals.max()))
+
+        if max_lambda <= 0:
+            # No frustrated edges shrinking the stability bound (phi* in set M)
+            return np.pi / 2.0
+
+        target = max_lambda / (4.0 * self.K_s)
+        if target >= 1.0:
+            # Q* cannot be made negative definite, estimate fails
+            return 0.0
+
+        def f(beta):
+            return np.sinc(beta) - target
+
+        sol = scipy.optimize.root_scalar(f, bracket=[1e-6, 1.0], method='brentq')
+        if sol.converged:
+            beta = sol.root
+            return beta * np.pi / 2.0
+        else:
+            return 0.0
+
 
     # ------------------------------------------------------------------
     #  Simulation
