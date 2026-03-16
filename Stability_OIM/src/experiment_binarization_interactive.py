@@ -5,7 +5,7 @@ from matplotlib.widgets import Slider
 from itertools import product as iproduct
 import time
 
-from Stability_OIM.src.oim import OscillatorIsingMachine
+from Stability_OIM.src.OIM_Stability import OscillatorIsingMachine
 from Stability_OIM.src.graph_utils import read_graph
 
 # ── Problem setup ──────────────────────────────────────────────────────────────

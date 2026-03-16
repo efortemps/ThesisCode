@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from itertools import product as iproduct
-from Stability_OIM.src.oim import OscillatorIsingMachine
+from Stability_OIM.src.OIM_Stability import OscillatorIsingMachine
 from Stability_OIM.src.graph_utils import read_graph
 
 # ── 1. Load King graph ─────────────────────────────────────────────────────────

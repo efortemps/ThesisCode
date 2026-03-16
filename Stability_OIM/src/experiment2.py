@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from Stability_OIM.src.oim import OscillatorIsingMachine
+from Stability_OIM.src.OIM_Stability import OscillatorIsingMachine
 
 # ── 1. Setup matching Experiment 2 ───────────────────────────────────────────
 K = 1.0

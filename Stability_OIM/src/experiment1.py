@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.colors import Normalize
 import matplotlib.lines as mlines
-from Stability_OIM.src.oim import OscillatorIsingMachine
+from Stability_OIM.src.OIM_Stability import OscillatorIsingMachine
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Problem definition (two coupled spins, unweighted graph, Section IV‑A)

@@ -7,7 +7,7 @@ import matplotlib.lines as mlines
 from matplotlib.colors import Normalize
 from matplotlib.gridspec import GridSpec
 import time
-from Stability_OIM.src.oim import OscillatorIsingMachine
+from Stability_OIM.src.OIM_Stability import OscillatorIsingMachine
 
 # ── Problem setup ─────────────────────────────────────────────────────────────
 K = 1.0
