@@ -1,0 +1,42 @@
+{
+  "experiment_name": "3node_20260316_111030",
+  "experiment_type": "single_mu",
+  "timestamp": "20260316_111030",
+  "dataset": {
+    "file": "OIM_Experiment/data/3node.txt",
+    "name": "3node",
+    "n_nodes": 3
+  },
+  "network_parameters": {
+    "mu": 2.0,
+    "Ks_equiv": 1.0,
+    "K_equiv": 1.0,
+    "init_mode": "small_random",
+    "timestep": 0.01
+  },
+  "simulation_settings": {
+    "n_init": 15,
+    "t_end": 50.0,
+    "n_points": 500,
+    "seed": 42
+  },
+  "results": {
+    "partition": [
+      -1,
+      1,
+      -1
+    ],
+    "set_A": [
+      1
+    ],
+    "set_B": [
+      0,
+      2
+    ],
+    "cut_value": 2.0,
+    "final_energy": -1.0,
+    "mu_star": 0.9999999999999999,
+    "binarised": true,
+    "runs_csv": "experiments_MaxCut_OIM/3node_20260316_111030/runs.csv"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "experiment_name": "mu_sweep_3node_20260316_111257",
+  "experiment_type": "mu_sweep",
+  "timestamp": "20260316_111257",
+  "dataset": {
+    "file": "OIM_Experiment/data/3node.txt",
+    "name": "3node",
+    "n_nodes": 3
+  },
+  "sweep_parameters": {
+    "mu_min": 0.2,
+    "mu_max": 5.0,
+    "n_mu": 30,
+    "n_init": 12,
+    "t_end": 60.0,
+    "n_points": 500,
+    "seed": 42
+  }
+}

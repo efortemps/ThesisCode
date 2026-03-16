@@ -1,0 +1,21 @@
+============================================================
+EXPERIMENT RESULTS — OIM Max-Cut (mu parametrisation)
+============================================================
+
+Dataset   : 3node
+Nodes     : 3
+
+Network parameters:
+  mu: 2.0
+  Ks_equiv: 1.0
+  K_equiv: 1.0
+  init_mode: small_random
+  timestep: 0.01
+
+Binary cut value : 2.000000
+Final energy     : -1.000000
+mu*              : 1.000000
+Binarised        : True
+
+Set A (sigma = +1) : [1]
+Set B (sigma = -1) : [0, 2]

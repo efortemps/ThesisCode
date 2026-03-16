@@ -1,0 +1,52 @@
+{
+  "experiment_name": "8node_20260316_111056",
+  "experiment_type": "single_mu",
+  "timestamp": "20260316_111056",
+  "dataset": {
+    "file": "OIM_Experiment/data/8node.txt",
+    "name": "8node",
+    "n_nodes": 8
+  },
+  "network_parameters": {
+    "mu": 2.0,
+    "Ks_equiv": 1.0,
+    "K_equiv": 1.0,
+    "init_mode": "small_random",
+    "timestep": 0.01
+  },
+  "simulation_settings": {
+    "n_init": 15,
+    "t_end": 50.0,
+    "n_points": 500,
+    "seed": 42
+  },
+  "results": {
+    "partition": [
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      1,
+      -1
+    ],
+    "set_A": [
+      0,
+      1,
+      3,
+      6
+    ],
+    "set_B": [
+      2,
+      4,
+      5,
+      7
+    ],
+    "cut_value": 10.0,
+    "final_energy": -8.0,
+    "mu_star": 1.236067977499789,
+    "binarised": true,
+    "runs_csv": "experiments_MaxCut_OIM/8node_20260316_111056/runs.csv"
+  }
+}
