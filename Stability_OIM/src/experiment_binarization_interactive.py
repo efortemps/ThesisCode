@@ -23,7 +23,7 @@ bin_thresh = min(
 print(f"  Ks* = {bin_thresh:.6f}  (paper: 0.276400)\n")
 
 # ── Pre-computation ────────────────────────────────────────────────────────────
-KS_MIN, KS_MAX, N_KS = 0.05, 0.80, 20
+KS_MIN, KS_MAX, N_KS = 0.05, 0.80, 200
 Ks_values = np.linspace(KS_MIN, KS_MAX, N_KS)
 KS_STEP   = float(Ks_values[1] - Ks_values[0])
 
