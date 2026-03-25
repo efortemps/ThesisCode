@@ -42,7 +42,7 @@ from OIM_Experiment.src.experiment_logger2 import MaxCutExperimentLogger
 
 # ── CLI ────────────────────────────────────────────────────────────────────────
 parser = argparse.ArgumentParser()
-parser.add_argument("graph",      nargs="?", default="3node.txt")
+parser.add_argument("--graph",      nargs="?", default="3node.txt")
 parser.add_argument("--mu_min",   type=float, default=0.2)
 parser.add_argument("--mu_max",   type=float, default=5.0)
 parser.add_argument("--n_mu",     type=int,   default=20)
