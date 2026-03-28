@@ -74,11 +74,6 @@ class OIMMaxCut:
         shil_term     = (self.mu / 2.0) * np.sin(2.0 * theta)
         return coupling_term - shil_term
 
-    def update(self):
-        """Forward Euler step (kept for backward compatibility).
-        Prefer simulate() / simulate_many() for accurate integration."""
-        self.theta += self.timestep * self._phase_rhs(None, self.theta)
-
     # ------------------------------------------------------------------
     # SciPy integration
     # ------------------------------------------------------------------
@@ -154,6 +149,8 @@ class OIMMaxCut:
         D        = -self.W * np.cos(diff)
         np.fill_diagonal(D, 0.0)
         np.fill_diagonal(D, -D.sum(axis=1))
+        # print(f"[OIM] Building D(phi*) for phi* = {phi_star}")
+        # print(f"[OIM] D(phi*) =\n{D}")
         return D
 
     def jacobian(self, phi_star: np.ndarray) -> np.ndarray:
@@ -313,7 +310,7 @@ class OIMMaxCut:
         dL/dt = -||d(theta)/dt||^2 <= 0  (global descent).
         """
         diff     = self.theta[:, None] - self.theta[None, :]
-        coupling = 0.5 * np.sum(self.W * np.cos(diff))
+        coupling = np.sum(self.W * np.cos(diff))
         penalty  = (self.mu / 2.0) * np.sum(np.sin(self.theta) ** 2)
         return float(coupling + penalty)
 
