@@ -64,7 +64,7 @@ from typing import List, Optional, Tuple
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
+import matplotlib.colors as mclors
 import numpy as np
 from scipy.integrate import solve_ivp
 
@@ -225,7 +225,7 @@ def exp1_coupling_shapes(k_list: List[int], coeffs, out_dir: str) -> None:
     Shows how increasing k sharpens the coupling toward sgn(sin φ).
     """
     phi  = np.linspace(-np.pi, np.pi, 2000)
-    cmap = plt.get_cmap("plasma")
+    cmap = plt.get_cmap("plasma", len(k_list))
 
     fig, ax = plt.subplots(figsize=(9, 5))
 
@@ -291,7 +291,7 @@ def exp2_phase_trajectories(
     if n_cols == 1:
         axes = [axes]
 
-    node_cmap = plt.get_cmap("tab10")
+    node_cmap = plt.get_cmap("tab10", N)
     t_span    = (0.0, t_end)
 
     for ax, k in zip(axes, k_list):
@@ -349,21 +349,28 @@ def exp3_binarization_speed(
     k_list:   List[int],
     coeffs,
     n_trials: int   = 30,
-    t_end:    float = 60.0,
-    n_points: int   = 600,
-    bin_tol:  float = 1e-2,
+    t_end:    float = 150.0,
+    n_points: int   = 1500,
+    bin_tol:  float = 0.05,
     seed:     int   = 1,
     out_dir:  str   = ".",
 ) -> None:
     """
-    For each k, run n_trials random initial conditions and find the
-    first time t* where max_i |sin(θ_i)| < bin_tol.
+    For each k, run n_trials random initial conditions and record:
+      (a) first time t* where max_i |sin θ_i| < bin_tol  (NaN if never reached)
+      (b) the final residual max_i |sin θ_i(t_end)|      (always available)
 
-    Plots:
-      - Median t* vs k  (lower = faster binarization)
-      - Fraction of runs that converged before t_end
+    WHY both metrics?
+    -----------------
+    For certain graph structures (e.g. regular bipartite graphs like C8/C10),
+    the optimal binary equilibria are only MARGINALLY stable: λ_max(D) = 0.
+    This means convergence is polynomial (~1/t) rather than exponential,
+    so the residual decays slowly and may still be above a tight threshold
+    at t_end.  Plotting the final residual always gives useful information
+    even when the threshold is never crossed.
 
-    Key question: does larger k binarize faster, and at what cost?
+    bin_tol default is 0.05 (not 0.01) for the same reason: on marginally
+    stable graphs a threshold of 0.01 requires very long integration times.
     """
     rng    = np.random.default_rng(seed)
     N      = W.shape[0]
@@ -371,61 +378,81 @@ def exp3_binarization_speed(
     t_eval = np.linspace(0.0, t_end, n_points)
 
     def first_binary_time(trajectory: np.ndarray) -> float:
-        """First t such that max|sin θ| < bin_tol. NaN if never."""
+        """First t such that max|sin θ| < bin_tol.  NaN if never reached."""
         for col_idx in range(trajectory.shape[1]):
             if binarization_residual(trajectory[:, col_idx]) < bin_tol:
                 return float(t_eval[col_idx])
         return np.nan
 
-    median_times, frac_converged, all_times = [], [], []
+    median_times, frac_converged, all_times  = [], [], []
+    median_resid, all_final_resid            = [], []
 
     for k in k_list:
-        times_k = []
+        times_k  = []
+        resids_k = []
         for _ in range(n_trials):
             phi0 = rng.uniform(0.0, 2 * np.pi, N)
             ss   = OIM_SpectralShaping(J, k=k, coeffs=coeffs)
             sol  = ss.simulate(phi0, t_span=(0.0, t_end), n_points=n_points)
             if sol is None:
                 times_k.append(np.nan)
+                resids_k.append(np.nan)
             else:
                 times_k.append(first_binary_time(sol.y))
-        times_k = np.array(times_k)
+                resids_k.append(binarization_residual(sol.y[:, -1]))
+
+        times_k  = np.array(times_k)
+        resids_k = np.array(resids_k)
         all_times.append(times_k)
+        all_final_resid.append(resids_k)
         median_times.append(float(np.nanmedian(times_k)))
         frac_converged.append(float(np.mean(~np.isnan(times_k))))
-        print(f"    k={k:>3}  median_t*={median_times[-1]:.2f}  "
-              f"converged={frac_converged[-1]*100:.0f}%")
+        median_resid.append(float(np.nanmedian(resids_k)))
+        print(f"    k={k:>3}  converged={frac_converged[-1]*100:.0f}%  "
+              f"median_t*={median_times[-1]:.1f}  "
+              f"median_final_residual={median_resid[-1]:.4f}")
 
     k_arr  = np.array(k_list)
     med_t  = np.array(median_times)
     frac   = np.array(frac_converged)
+    med_r  = np.array(median_resid)
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    # Figure 1: speed summary (2 panels)
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5))
     fig.suptitle(
         f"Experiment 3 — Binarization Speed vs k  "
-        f"(N={N}, {n_trials} trials, tol={bin_tol})",
+        f"(N={N}, {n_trials} trials, tol={bin_tol}, T={t_end:.0f})",
         fontsize=12, fontweight="bold",
     )
 
-    # Panel A: median t* vs k
+    # Panel A: fraction converged (always has data)
     ax = axes[0]
-    ax.plot(k_arr, med_t, "o-", color="#6a4fa3", markersize=7, linewidth=2)
-    ax.set_xlabel("Fourier order k", fontsize=12)
-    ax.set_ylabel("Median convergence time t*", fontsize=11)
-    ax.set_title("How fast does the system binarize?")
-    ax.grid(True, alpha=0.3)
-    ax.set_xticks(k_arr)
-
-    # Panel B: fraction converged vs k
-    ax = axes[1]
-    ax.plot(k_arr, frac * 100, "s-", color="#2a9d8f", markersize=7, linewidth=2)
+    ax.bar(k_arr, frac * 100, color="#6a4fa3", alpha=0.8, width=1.5,
+           edgecolor="white", linewidth=0.6)
     ax.axhline(100, color="gray", linestyle=":", linewidth=1.2)
     ax.set_xlabel("Fourier order k", fontsize=12)
-    ax.set_ylabel("% trials binarized before t_end", fontsize=11)
-    ax.set_ylim(-5, 110)
-    ax.set_title(f"What fraction binarizes within T={t_end:.0f}?")
-    ax.grid(True, alpha=0.3)
+    ax.set_ylabel(f"% trials reaching residual < {bin_tol}", fontsize=11)
+    ax.set_ylim(0, 115)
+    ax.set_title(f"Binarization rate before T={t_end:.0f}")
     ax.set_xticks(k_arr)
+    ax.grid(True, alpha=0.3, axis="y")
+    for xi, fi in zip(k_arr, frac):
+        ax.text(xi, fi * 100 + 2, f"{fi*100:.0f}%", ha="center",
+                va="bottom", fontsize=8, color="#333")
+
+    # Panel B: median final residual vs k (always has data)
+    ax = axes[1]
+    ax.plot(k_arr, med_r, "o-", color="#e07b39", markersize=7, linewidth=2,
+            label="Median final residual")
+    ax.axhline(bin_tol, color="purple", linestyle="--", linewidth=1.3,
+               label=f"bin_tol = {bin_tol}")
+    ax.axhline(0.0, color="black", linestyle=":", linewidth=0.8, alpha=0.5)
+    ax.set_xlabel("Fourier order k", fontsize=12)
+    ax.set_ylabel(r"Median $\max_i |\sin\theta_i|$ at $t_{end}$", fontsize=11)
+    ax.set_title(f"Residual at T={t_end:.0f} (lower = more binary)")
+    ax.legend(fontsize=9)
+    ax.set_xticks(k_arr)
+    ax.grid(True, alpha=0.3)
 
     fig.tight_layout()
     path = os.path.join(out_dir, "exp3_binarization_speed.png")
@@ -433,33 +460,42 @@ def exp3_binarization_speed(
     plt.close(fig)
     print(f"  [Exp 3] Saved → {path}")
 
-    # Also save a box-plot of convergence time distributions
-    fig2, ax2 = plt.subplots(figsize=(10, 5))
-    valid_times = [t[~np.isnan(t)] for t in all_times]
-    positions   = list(range(len(k_list)))
-    bp = ax2.boxplot(
-        valid_times, positions=positions, widths=0.5, patch_artist=True,
+    # Figure 2: final residual box plots (always has data)
+    fig2, ax2 = plt.subplots(figsize=(11, 5))
+    valid_resids = [r[~np.isnan(r)] for r in all_final_resid]
+    positions    = list(range(len(k_list)))
+    plot_data = [r if len(r) > 0 else np.array([np.nan]) for r in valid_resids]
+    ax2.boxplot(
+        plot_data, positions=positions, widths=0.5, patch_artist=True,
         boxprops=dict(facecolor="#c9b8e8", color="#6a4fa3"),
         medianprops=dict(color="black", linewidth=2),
         whiskerprops=dict(color="#6a4fa3"),
         capprops=dict(color="#6a4fa3"),
         flierprops=dict(marker="x", color="#6a4fa3", markersize=4),
     )
+    ax2.axhline(bin_tol, color="purple", linestyle="--", linewidth=1.5,
+                label=f"bin_tol = {bin_tol}")
+    ax2.axhline(0.0, color="black", linestyle=":", linewidth=0.8, alpha=0.4)
     ax2.set_xticks(positions)
     ax2.set_xticklabels([f"k={k}" for k in k_list])
     ax2.set_xlabel("Fourier order k", fontsize=12)
-    ax2.set_ylabel("Convergence time t*", fontsize=11)
+    ax2.set_ylabel(r"Final residual $\max_i |\sin\theta_i(T)|$", fontsize=11)
     ax2.set_title(
-        f"Distribution of binarization time t* vs k  (N={N}, {n_trials} trials)\n"
-        f"Only converged trials shown — fraction shown above",
-        fontsize=11,
+        f"Distribution of final binarization residual vs k  "
+        f"(N={N}, {n_trials} trials, T={t_end:.0f})\n"
+        f"Below purple line = binarized (tol={bin_tol}).  "
+        f"Fraction binarized shown above each box.",
+        fontsize=10,
     )
+    ax2.legend(fontsize=9)
+    y_top = ax2.get_ylim()[1]
     for pos, frac_val in zip(positions, frac_converged):
-        ax2.text(pos, ax2.get_ylim()[1] * 0.97,
-                 f"{frac_val*100:.0f}%", ha="center", va="top", fontsize=9, color="#333")
+        ax2.text(pos, y_top * 0.97, f"{frac_val*100:.0f}%",
+                 ha="center", va="top", fontsize=9, color="#6a4fa3",
+                 fontweight="bold")
     ax2.grid(True, alpha=0.3, axis="y")
     fig2.tight_layout()
-    path2 = os.path.join(out_dir, "exp3_convergence_boxplot.png")
+    path2 = os.path.join(out_dir, "exp3_residual_boxplot.png")
     fig2.savefig(path2, dpi=140)
     plt.close(fig2)
     print(f"  [Exp 3] Saved → {path2}")
@@ -631,14 +667,29 @@ def exp5_hardness_landscape(
 
     always_stable = lambda_D <= 0.0
     n_stable      = int(always_stable.sum())
-    opt_mask      = np.isclose(cuts, best_cut)
+
+    # Use the true maximum cut found by enumeration.
+    # The passed-in best_cut is used only for the vertical reference line;
+    # it may differ from the enumeration maximum if the graph file comment
+    # is wrong (e.g. C10 comment says 14 but actual MaxCut is 15).
+    enum_best     = float(cuts.max())
+    opt_mask      = np.isclose(cuts, enum_best)
+
+    if not np.isclose(enum_best, best_cut):
+        print(f"  [Exp 5] NOTE: enumeration best cut = {enum_best:.0f}, "
+              f"but passed best_cut = {best_cut:.0f}. "
+              f"Using enumeration value for landscape analysis.")
 
     print(f"  [Exp 5] Always-stable (λ_D ≤ 0): {n_stable} / {2**N}")
-    print(f"  [Exp 5] Optimal equilibria  (cut={best_cut:.0f}): "
-          f"λ_D ∈ [{lambda_D[opt_mask].min():.3f}, {lambda_D[opt_mask].max():.3f}]")
+    if opt_mask.any():
+        print(f"  [Exp 5] Best-cut equilibria (cut={enum_best:.0f}): "
+              f"λ_D ∈ [{lambda_D[opt_mask].min():.3f}, {lambda_D[opt_mask].max():.3f}]")
+    else:
+        print(f"  [Exp 5] No binary equilibrium exactly achieves cut={enum_best:.0f} "
+              f"(floating-point check failed — investigate manually).")
 
     # ---- Plot ----
-    norm = mcolors.Normalize(cuts.min(), cuts.max())
+    norm = mclors.Normalize(cuts.min(), cuts.max())
     cmap = plt.get_cmap("RdYlGn")
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
@@ -658,14 +709,15 @@ def exp5_hardness_landscape(
     )
     ax.axhline(0.0, color="black", linestyle="--", linewidth=1.5,
                label=r"$\lambda_D = 0$  (stability boundary)")
-    ax.axvline(best_cut, color="purple", linestyle=":", linewidth=1.5,
-               label=f"Optimal cut = {best_cut:.0f}")
-    # Highlight optimal equilibria
-    ax.scatter(
-        cuts[opt_mask], lambda_D[opt_mask],
-        s=80, edgecolors="purple", facecolors="none",
-        linewidths=1.8, zorder=3, label="Optimal equilibria",
-    )
+    ax.axvline(enum_best, color="purple", linestyle=":", linewidth=1.5,
+               label=f"Best cut (enumeration) = {enum_best:.0f}")
+    # Highlight best-cut equilibria
+    if opt_mask.any():
+        ax.scatter(
+            cuts[opt_mask], lambda_D[opt_mask],
+            s=80, edgecolors="purple", facecolors="none",
+            linewidths=1.8, zorder=3, label=f"Best-cut equilibria ({opt_mask.sum()})",
+        )
     cb = plt.colorbar(sc, ax=ax)
     cb.set_label("Cut value", fontsize=9)
     ax.set_xlabel("Cut value",                            fontsize=12)
@@ -690,8 +742,8 @@ def exp5_hardness_landscape(
     ax2.hist(stable_cuts, bins=bins, alpha=0.65, color="#2ca02c",
              label=f"Always stable (λ_D ≤ 0): {n_stable}",
              edgecolor="none")
-    ax2.axvline(best_cut, color="black", linestyle="--",
-                linewidth=1.8, label=f"Optimal cut = {best_cut:.0f}")
+    ax2.axvline(enum_best, color="black", linestyle="--",
+                linewidth=1.8, label=f"Best cut (enumeration) = {enum_best:.0f}")
     ax2.set_xlabel("Cut value",              fontsize=12)
     ax2.set_ylabel("Number of equilibria",   fontsize=11)
     ax2.set_title(

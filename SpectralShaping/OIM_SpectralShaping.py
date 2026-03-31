@@ -152,7 +152,8 @@ class OIM_SpectralShaping:
         Energy coupling potential (antiderivative of g_k):
             G_k(phi) = sum_{n odd, n<=k} c_n/n cos(n phi)
 
-        Satisfies  dG_k/dphi = g_k(phi).
+        Satisfies  dG_k/dphi = - g_k(phi). Take care as g_k is odd but G_k is even.
+        Used in the energy function:
         E(theta) = -1/2 sum_ij J_ij G_k(theta_i - theta_j).
         """
         out = np.zeros_like(phi, dtype=float)
