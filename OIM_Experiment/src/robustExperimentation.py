@@ -107,10 +107,10 @@ BROWN  = "#937860"
 
 # ── Import OIMMaxCut (tries local, then package path) ─────────────────────────
 try:
-    from OIM_mu_v2 import OIMMaxCut
+    from OIM_Experiment.src.OIM_mu import OIMMaxCut
 except ModuleNotFoundError:
     try:
-        from OIM_Experiment.src.OIM_mu_v2 import OIMMaxCut
+        from OIM_Experiment.src.OIM_mu import OIMMaxCut
     except ModuleNotFoundError:
         raise ImportError(
             "Cannot find OIM_mu_v2.py — place it in the same directory "
@@ -301,10 +301,9 @@ def experiment_D(W: np.ndarray,
                        left=0.07, right=0.91, top=0.88, bottom=0.09,
                        wspace=0.32, hspace=0.48)
     ax_bif  = fig.add_subplot(gs[:, 0])    # full-height left
-    ax_ns   = fig.add_subplot(gs[0, 1])    # top right
-    ax_cut  = fig.add_subplot(gs[1, 1])    # bottom right
+    ax_ns   = fig.add_subplot(gs[:, 1])    # top right
 
-    for ax in (ax_bif, ax_ns, ax_cut):
+    for ax in (ax_bif, ax_ns):
         _style_ax(ax)
 
     # Panel 1: eigenvalue branches (analytical straight lines, slope −1) ──────
@@ -373,32 +372,6 @@ def experiment_D(W: np.ndarray,
     ax_ns.set_xlim(mu_min, mu_max)
     ax_ns.set_ylim(-0.5, n_total * 1.08)
     ax_ns.legend(fontsize=8, facecolor=WHITE, edgecolor=GRAY)
-
-    # Panel 3: best cut from simulation ───────────────────────────────────────
-    ax_cut.fill_between(mu_sim, ci_lo_s, ci_hi_s,
-                        color=BLUE, alpha=0.18, label="95% bootstrap CI")
-    ax_cut.plot(mu_sim, best_cut_s, "o-", color=BLUE,
-                lw=2.0, ms=4, label="Best cut (simulation)")
-    ax_cut.axhline(cut_opt, color=GREEN, lw=1.5, ls="--",
-                   label=f"Optimal cut $= {cut_opt:.0f}$")
-    ax_cut.axvline(mu_bin, color=RED, lw=1.2, ls=":",
-                   label=fr"$\mu_{{\rm bin}}$")
-    if mu_c_empiric is not None:
-        ax_cut.axvline(mu_c_empiric, color=ORANGE, lw=1.2, ls="--",
-                       label=fr"$\hat\mu_c$")
-    ax_cut.text(0.97, 0.05,
-                f"$H^*={H_ground:.1f}$\n"
-                f"$W_{{\\rm total}}={W_total:.1f}$\n"
-                f"Opt cut $= {cut_opt:.0f}$",
-                transform=ax_cut.transAxes, ha="right", va="bottom",
-                fontsize=8.5, bbox=_tikz_box())
-    ax_cut.set_xlabel(r"$\mu$", fontsize=11)
-    ax_cut.set_ylabel("Best cut found", fontsize=10)
-    ax_cut.set_title(
-        f"Simulation: best cut vs $\\mu$  ({n_trials_sim} trials/pt, "
-        f"95% CI bootstrap)", fontsize=9.5)
-    ax_cut.set_xlim(mu_min, mu_max)
-    ax_cut.legend(fontsize=8, facecolor=WHITE, edgecolor=GRAY)
 
     fig.suptitle(
         f"OIM Bifurcation Analysis — {_graph_info(W)}",
@@ -694,7 +667,7 @@ def experiment_E(W: np.ndarray,
         rows.append([name,
                      f"{mb:.4f}",
                      f"{rho:.3f}",
-                     f"{pv:.4f}",
+                     f"{pv:.2e}",
                      mono, sig])
 
     tbl = ax_tbl.table(cellText=rows, colLabels=col_labels,

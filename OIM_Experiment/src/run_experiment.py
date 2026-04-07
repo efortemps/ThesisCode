@@ -61,9 +61,9 @@ ACCENT = "#1f77b4"
 
 # ── Import OIMMaxCut ────────────────────────────────────────────────────────────
 try:
-    from OIM_mu_v2 import OIMMaxCut
+    from OIM_Experiment.src.OIM_mu import OIMMaxCut
 except ModuleNotFoundError:
-    from OIM_Experiment.src.OIM_mu_v2 import OIMMaxCut
+    from OIM_Experiment.src.OIM_mu import OIMMaxCut
 
 # ── Graph reader ────────────────────────────────────────────────────────────────
 def _load_graph(path: str) -> np.ndarray:
@@ -78,10 +78,10 @@ def _load_graph(path: str) -> np.ndarray:
         pass
     try:
         try:
-            from read_graphs import read_graph_to_J
+            from graph_utils import read_graph
         except ModuleNotFoundError:
-            from Stability_OIM_2.read_graphs import read_graph_to_J
-        return -np.array(read_graph_to_J(path), dtype=float)   # W = -J
+            from OIM_Experiment.src.graph_utils import read_graph
+        return -np.array(read_graph(path), dtype=float)   # W = -J
     except (ModuleNotFoundError, ImportError):
         raise ImportError("Cannot find a graph reader (graph_utils or read_graphs).")
 
@@ -563,31 +563,11 @@ def experiment_C(W: np.ndarray, mu_init: float, mu_min: float, mu_max: float,
 
     He0, lmin0, lmax0, Eg0, lam0 = _compute_lam(mu_init)
 
-    line_max, = ax_left.plot(He0, lmax0, "o-", color=ORANGE, lw=1.8, ms=6,
-                             label=r"max $\lambda_{\max}(A)$ per energy level")
     line_min, = ax_left.plot(He0, lmin0, "s-", color=BLUE, lw=1.8, ms=6,
                              label=r"min $\lambda_{\max}(A)$ per energy level")
     ref_zero,  = ax_left.plot([], [], color=BLACK, linestyle="--", lw=1.2)
     ax_left.axhline(0.0, color=BLACK, linestyle="--", lw=1.2,
                     label=r"$\lambda_{\max}(A) = 0$  (stability boundary)")
-
-    def _draw_ground_box(ax, Eg, lmin_a, lmax_a, He_a):
-        # Remove only FancyBboxPatch objects (not axhline patches)
-        for p in [p for p in ax.patches
-                  if isinstance(p, mpatches.FancyBboxPatch)]:
-            p.remove()
-        mask = np.isclose(He_a, Eg)
-        if not mask.any():
-            return
-        lo = lmin_a[mask].min() - 0.3
-        hi = lmax_a[mask].max() + 0.3
-        ax.add_patch(mpatches.FancyBboxPatch(
-            (Eg - 0.6, lo), 1.2, hi - lo,
-            boxstyle="round,pad=0.1", linewidth=1.8,
-            edgecolor=ORANGE, facecolor="none", linestyle="--", zorder=5,
-        ))
-
-    _draw_ground_box(ax_left, Eg0, lmin0, lmax0, He0)
 
     ax_left.set_xlabel("OIM Lyapunov Energy E", fontsize=12, color=BLACK)
     ax_left.set_ylabel(r"$\lambda_{\max}(A(\phi^*))$  [Jacobian eigenvalue]",
@@ -616,8 +596,6 @@ def experiment_C(W: np.ndarray, mu_init: float, mu_min: float, mu_max: float,
         return (
             f"$\\lambda_{{\\max}}(A)$ min = {lam_all.min():.4f}\n"
             f"$\\lambda_{{\\max}}(A)$ max = {lam_all.max():.4f}\n"
-            f"($\\lambda_{{\\max}}(A) = \\lambda_{{\\max}}(D) - \\mu$)\n"
-            f"— D-matrix theory (Remark 7) —\n"
             f"$\\mu_{{\\rm bin}}$ = {mu_bin:.4f}   "
             f"$K_s^*$ = {Ks_theory:.4f}\n"
             f"Easiest: {theory['easiest_eq']}\n"
@@ -664,15 +642,6 @@ def experiment_C(W: np.ndarray, mu_init: float, mu_min: float, mu_max: float,
     dot_cur,  = ax_right.plot([ks_init], [_mean_init], "o",
                                color=BLUE, ms=8, zorder=8)
 
-    bin_valid = bin_mask & valid
-    bin_dots  = ax_right.scatter(
-        ks_grid[bin_valid], mean_H_arr[bin_valid],
-        color=ORANGE, s=70, zorder=9, picker=6,
-        edgecolors=WHITE, linewidths=0.8,
-        label="Naturally binarised (click)",
-    )
-    bin_idxs = np.where(bin_valid)[0]
-
     annot = ax_right.annotate(
         "", xy=(0, 0), xytext=(18, 18), textcoords="offset points",
         bbox=_tikz_bbox(),
@@ -704,7 +673,6 @@ def experiment_C(W: np.ndarray, mu_init: float, mu_min: float, mu_max: float,
         return (
             f"$K_s$ = {ks:.4f}   ($\\mu$ = {2*ks:.4f})\n"
             f"Mean H = {mean_h:.3f}\n"
-            f"$K_s^*$ theory = {Ks_theory:.4f}   "
             f"($\\mu_{{\\rm bin}}$ = {mu_bin:.4f})\n"
             + ("BINARISED ✓" if is_bin else "NOT BINARISED ✗")
         )
@@ -731,8 +699,6 @@ def experiment_C(W: np.ndarray, mu_init: float, mu_min: float, mu_max: float,
         He, lmin, lmax, Eg, lam_all = _compute_lam(mu_cur)
 
         # Update line data
-        line_max.set_xdata(He)
-        line_max.set_ydata(lmax)
         line_min.set_xdata(He)
         line_min.set_ydata(lmin)
 
@@ -740,9 +706,6 @@ def experiment_C(W: np.ndarray, mu_init: float, mu_min: float, mu_max: float,
         ax_left.relim()
         ax_left.set_xlim(*_left_xlim(He))
         ax_left.set_ylim(*_left_ylim(lmin, lmax))
-
-        # Redraw ground-state box
-        _draw_ground_box(ax_left, Eg, lmin, lmax, He)
 
         # Update title and annotation
         ax_left.set_title(
@@ -765,34 +728,6 @@ def experiment_C(W: np.ndarray, mu_init: float, mu_min: float, mu_max: float,
         fig.canvas.draw_idle()
 
     slider.on_changed(update)
-
-    # ── Click handler — tooltip on binarised dots ─────────────────────────
-    def on_pick(event):
-        if event.artist is not bin_dots:
-            annot.set_visible(False)
-            fig.canvas.draw_idle()
-            return
-        i        = event.ind[0]
-        gi       = bin_idxs[i]
-        ks_val   = float(ks_grid[gi])
-        h_val    = float(mean_H_arr[gi])
-        frac     = float(frac_bin_arr[gi])
-        vs_th    = "above" if ks_val >= Ks_theory else "below"
-        annot.xy = (ks_val, h_val)
-        annot.set_text(
-            f"Ks = {ks_val:.4f}   (mu = {2*ks_val:.4f})\n"
-            f"Mean H = {h_val:.3f}\n"
-            f"Ground state H = {H_ground:.3f}\n"
-            f"Binarised: {frac*100:.0f}% of trials\n"
-            f"{vs_th} K_s* theory ({Ks_theory:.4f})"
-        )
-        annot.set_visible(True)
-        fig.canvas.draw_idle()
-
-    fig.canvas.mpl_connect("pick_event", on_pick)
-    fig.canvas.mpl_connect("button_press_event", lambda e: (
-        annot.set_visible(False), fig.canvas.draw_idle()
-    ) if e.inaxes is ax_right else None)
 
     fig.suptitle(
         f"OIM Stability Explorer — N={N}   |   mu parametrisation   "

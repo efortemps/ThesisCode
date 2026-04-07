@@ -93,7 +93,7 @@ from scipy.integrate import solve_ivp
 # Try to import the two OIM classes.  Adjust paths as needed.
 # ------------------------------------------------------------------
 try:
-    from OIM_Experiment.src.OIM_mu_v2 import OIMMaxCut
+    from OIM_Experiment.src.OIM_mu import OIMMaxCut
 except ImportError:
     sys.exit(
         "ERROR: Cannot import OIMMaxCut from OIM_mu_v2.py.\n"

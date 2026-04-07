@@ -35,9 +35,9 @@ import matplotlib.patches as mpatches
 import matplotlib.lines as mlines
 from pathlib import Path
 
-from OIM_Experiment.src.OIM_mu_v2 import OIMMaxCut
+from OIM_Experiment.src.OIM_mu import OIMMaxCut
 from OIM_Experiment.src.graph_utils import read_graph
-from OIM_Experiment.src.experiment_logger2 import MaxCutExperimentLogger
+from OIM_Experiment.src.experiment_logger import MaxCutExperimentLogger
 
 # ── CLI ────────────────────────────────────────────────────────────────────────
 parser = argparse.ArgumentParser(description="OIM Max-Cut experiment (single mu)")
