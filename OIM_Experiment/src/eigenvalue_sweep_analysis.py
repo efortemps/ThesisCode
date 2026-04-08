@@ -1,33 +1,56 @@
 #!/usr/bin/env python3
 """
-eigenvalue_sweep_analysis.py
+eigenvalue_sweep_analysis.py  (updated)
 ─────────────────────────────────────────────────────────────────────────────
 Mu-sweep eigenvalue / bifurcation analysis for any graph fed to OIMMaxCut.
 
 Three separate figures
 ──────────────────────
-Figure 1 — Phase dynamics
-  Left  | Phase trajectories θ_i(t) for all initial conditions
-  Right | ODE convergence table (reached equilibria per trajectory)
+Figure 1 — Phase dynamics  +  convergence table
+  Left   | Phase trajectories θ_i(t) for all initial conditions
+  Right  | Per-trajectory convergence table (terminal state, type, H, cut,
+           distance to every binary equilibrium, …) + summary table
 
 Figure 2 — Bifurcation analysis
-  Row 0 | λ_max(D) bar chart  — all 2^N equilibria, bars coloured by cut
-  Row 1 | Bifurcation diagram — λ_max(D)−μ vs μ, annotated H & cut
+  Row 0  | λ_max(D) bar chart  — all 2^N equilibria, bars coloured by cut
+  Row 1  | Bifurcation diagram — λ_max(D)−μ vs μ, annotated H & cut
 
 Figure 3 — Quality analysis
-  Left  | H vs cut scatter    — all 2^N equilibria, ODE hits overlaid
-  Right | D(φ*) spectrum      — 3 representative equilibria
+  Left   | H vs cut scatter    — all 2^N equilibria, ODE hits overlaid
+  Right  | D(φ*) spectrum      — 3 representative equilibria
 
-Mathematical background (Cheng et al., Chaos 34, 073103, 2024)
-──────────────────────────────────────────────────────────────
-A(φ*, μ) = D(φ*) − μ·I_N   →   λ_k(A) = λ_k(D) − μ   (slope −1 in μ)
-Stability: μ > λ_max(D(φ*))
-μ_bin = min_{φ*∈{0,π}^N} λ_max(D(φ*))
-H(σ) = Σ_{i<j} W_ij σ_i σ_j = W_total − 2·cut
+──────────────────────────────────────────────────────────────────────────────
+ROOT-CAUSE NOTE  (explains the ±π/2 trap seen in Figure_1_trajectories.png)
+──────────────────────────────────────────────────────────────────────────────
+The original code initialised trajectories from  uniform(-0.08, 0.08)  — a
+tiny band around zero.  For a bipartite graph with μ ≈ 0, the coupling ODE
+antisymmetrically pushes the two partitions in opposite directions, landing
+both partitions near ±π/2.  At exactly θ = ±π/2 the SHIL restoring force
+is   (μ/2) sin(2·π/2) = (μ/2) sin(π) = 0,   so the escape time scales as
+1/μ.  With μ = 0.01 that is ~100× the integration window (t_end = 80), so
+the trajectories appear "stuck" — marked NOT YET BINARISED.
+
+In contrast, experiment_maxcut_interactive.py draws from uniform(-π, π),
+which breaks the symmetry and puts each trajectory in the correct basin.
+
+FIX applied here:
+  • phi0s sampled from  uniform(-π, π, N)                [main(), line ~620]
+  • identify_convergence now classifies terminal states into 5 types
+  • Figure 1 carries a full per-trajectory table AND a summary table
+    showing for each unique terminal state: count, type, H, cut, residual,
+    and distance to the nearest binary (M2) equilibrium.
+
+Mathematical background  (Cheng et al., Chaos 34, 073103, 2024)
+────────────────────────────────────────────────────────────────
+  A(φ*, μ) = D(φ*) − μ·I_N   →   λ_k(A) = λ_k(D) − μ   (slope −1 in μ)
+  Stability: μ > λ_max(D(φ*))
+  μ_bin = min_{φ*∈{0,π}^N} λ_max(D(φ*))
+  H(σ) = Σ_{i<j} W_ij σ_i σ_j = W_total − 2·cut
 ─────────────────────────────────────────────────────────────────────────────
 """
 
 import argparse
+from collections import defaultdict
 from itertools import product as iproduct
 
 import numpy as np
@@ -39,7 +62,7 @@ import matplotlib.colors as mcolors
 from OIM_Experiment.src.OIM_mu import OIMMaxCut
 from OIM_Experiment.src.graph_utils import read_graph
 
-# ── global style ──────────────────────────────────────────────────────────────
+# ── global style (TikZ-like, identical to experiment_maxcut_interactive) ──────
 plt.rcParams.update({
     "font.family":       "serif",
     "font.size":         11,
@@ -67,6 +90,15 @@ C_FERRO    = "#c44e52"
 C_MIXED    = "#8172b2"
 C_MU_LINE  = "#ffb74d"
 
+# Terminal-state type colours
+_TYPE_COL = {
+    "M2-binary":     C_STABLE,    # θ_i ∈ {0, π}            correct binarised
+    "M1-half":       C_UNSTABLE,  # θ_i ∈ {±π/2}            ±π/2 trap
+    "M1-mixed":      "#e377c2",   # mix of {0,π} and {±π/2}
+    "Type-III":      C_MIXED,     # continuous-phase eq.
+    "not-converged": GRAY,        # residual too large
+}
+
 
 def _ax_style(ax, title="", xlabel="", ylabel="", titlesize=11):
     ax.set_facecolor(WHITE)
@@ -80,7 +112,6 @@ def _ax_style(ax, title="", xlabel="", ylabel="", titlesize=11):
     if ylabel: ax.set_ylabel(ylabel, color=BLACK, fontsize=11)
 
 
-# ── silent Jacobian ───────────────────────────────────────────────────────────
 def _jacobian(oim: OIMMaxCut, phi_star: np.ndarray) -> np.ndarray:
     D = oim.build_D(phi_star)
     return D - oim.mu * np.diag(np.cos(2.0 * phi_star))
@@ -133,7 +164,7 @@ def mu_sweep(oim: OIMMaxCut, eq_data: dict, mu_vals: np.ndarray) -> dict:
 
     for r in rows:
         key = r["bits"]
-        paths[key] = r["ev_D"][None, :] - mu_vals[:, None]   # (M, N)
+        paths[key] = r["ev_D"][None, :] - mu_vals[:, None]
         mu_star = r["lmax_D"]
         if mu_vals[0] <= mu_star <= mu_vals[-1]:
             bif_pts.append((mu_star, key))
@@ -148,7 +179,7 @@ def mu_sweep(oim: OIMMaxCut, eq_data: dict, mu_vals: np.ndarray) -> dict:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# 3 representative equilibria spanning the λ_max(D) range
+# 3 representative equilibria
 # ═════════════════════════════════════════════════════════════════════════════
 def pick_representatives(rows: list):
     sr   = sorted(rows, key=lambda r: r["lmax_D"])
@@ -170,139 +201,105 @@ def pick_representatives(rows: list):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Convergence identification
+# Convergence identification — classifies all 5 terminal-state types
 # ═════════════════════════════════════════════════════════════════════════════
-def identify_convergence(sol, W: np.ndarray, tol: float = 0.05):
-    theta    = sol.y[:, -1]
-    residual = float(np.max(np.abs(np.sin(theta))))
-    sigma    = np.sign(np.cos(theta))
+def _atom(theta_i: float, tol: float = 0.05) -> str:
+    """
+    Classify a single terminal phase θ_i into one of four atom types.
+
+    'zero'  — |sin(θ)| < tol AND cos(θ) > 0   (θ ≈ 0 mod 2π)
+    'pi'    — |sin(θ)| < tol AND cos(θ) < 0   (θ ≈ π mod 2π)
+    'half'  — |sin(θ)| ≈ 1                     (θ ≈ ±π/2)
+    'other' — none of the above                (Type-III)
+    """
+    s = np.sin(theta_i)
+    c = np.cos(theta_i)
+    if abs(s) < tol:
+        return "zero" if c > 0 else "pi"
+    if abs(abs(s) - 1.0) < tol:
+        return "half"
+    return "other"
+
+
+def identify_convergence(sol, W: np.ndarray,
+                          binary_equilibria: list,
+                          bin_tol: float = 0.05) -> dict:
+    """
+    Classify the terminal state of one ODE trajectory.
+
+    Returns dict with keys:
+      theta_end   — (N,) terminal phase vector
+      bits        — tuple  0/1 from hard binarisation (sign of cos)
+      H, cut      — Hamiltonian and cut at the binarised bits
+      residual    — max_i |sin(θ_i)|  (0 = perfect binary)
+      is_binary   — True iff state_type == 'M2-binary'
+      state_type  — 'M2-binary' | 'M1-half' | 'M1-mixed' |
+                    'Type-III'  | 'not-converged'
+      atom_types  — list of per-spin atom type strings
+      nearest_eq  — closest M2 equilibrium (by L2 dist in phase space)
+    """
+    theta = sol.y[:, -1].copy()
+    n     = len(theta)
+
+    sigma = np.sign(np.cos(theta))
     sigma[sigma == 0] = 1.0
-    bits = tuple(0 if s > 0 else 1 for s in sigma)
-    H    = 0.5  * float(np.sum(W * np.outer(sigma, sigma)))
-    cut  = 0.25 * float(np.sum(W * (1.0 - np.outer(sigma, sigma))))
-    return bits, H, cut, residual < tol, residual
+    bits     = tuple(0 if s > 0 else 1 for s in sigma)
+    H        = 0.5  * float(np.sum(W * np.outer(sigma, sigma)))
+    cut      = 0.25 * float(np.sum(W * (1.0 - np.outer(sigma, sigma))))
+    residual = float(np.max(np.abs(np.sin(theta))))
 
+    atom_types = [_atom(th, bin_tol) for th in theta]
+    n_zero = atom_types.count("zero")
+    n_pi   = atom_types.count("pi")
+    n_half = atom_types.count("half")
+    n_othe = atom_types.count("other")
 
-# ═════════════════════════════════════════════════════════════════════════════
-# ── FIGURE 1  Phase dynamics + convergence table ──────────────────────────────
-# ═════════════════════════════════════════════════════════════════════════════
-def make_figure1(args, n, W, eq_data, sols, MU_SIM, conv_results):
+    if n_zero + n_pi == n:
+        state_type = "M2-binary"
+    elif n_half == n:
+        state_type = "M1-half"
+    elif n_half > 0 and n_othe == 0 and n_zero + n_pi + n_half == n:
+        state_type = "M1-mixed"
+    elif n_othe > 0:
+        state_type = "Type-III"
+    else:
+        state_type = "not-converged"
 
-    mu_bin   = eq_data["mu_bin"]
-    w_total  = eq_data["w_total"]
-    best_cut = eq_data["best_cut"]
+    # nearest M2 equilibrium in phase space
+    nearest_eq = None
+    min_dist   = np.inf
+    for r in binary_equilibria:
+        diff = theta - r["phi"]
+        diff = (diff + np.pi) % (2 * np.pi) - np.pi   # wrap to (−π, π]
+        dist = float(np.linalg.norm(diff))
+        if dist < min_dist:
+            min_dist   = dist
+            nearest_eq = {
+                "bits"   : r["bits"],
+                "phi"    : r["phi"].copy(),
+                "H"      : r["H"],
+                "cut"    : r["cut"],
+                "mu_thr" : r["mu_thr"],
+                "stable" : r["stable"],
+                "dist_L2": dist,
+            }
 
-    fig = plt.figure(figsize=(18, 7), facecolor=WHITE)
-    gs  = gridspec.GridSpec(1, 3, figure=fig, wspace=0.32,
-                            left=0.06, right=0.97, top=0.88, bottom=0.13)
-    ax_phase = fig.add_subplot(gs[0, :2])   # wide left
-    ax_conv  = fig.add_subplot(gs[0, 2])    # table right
-
-    # ── phase trajectories ────────────────────────────────────────────────────
-    SPIN_COLS = plt.get_cmap("tab20")(np.linspace(0, 1, max(n, 2)))
-    PI_TICKS  = [-np.pi, -np.pi / 2, 0, np.pi / 2, np.pi]
-    PI_LABELS = [r"$-\pi$", r"$-\pi/2$", r"$0$", r"$\pi/2$", r"$\pi$"]
-
-    t = sols[0].t
-    for sol in sols:
-        for spin in range(n):
-            ax_phase.plot(t, sol.y[spin],
-                          color=SPIN_COLS[spin % 20],
-                          alpha=0.42, linewidth=1.0)
-
-    for yref, lw_r in [(np.pi, 1.1), (0.0, 1.4), (-np.pi, 0.9)]:
-        ax_phase.axhline(yref, color=GRAY, linestyle="--",
-                         linewidth=lw_r, alpha=0.85)
-
-    ax_phase.set_yticks(PI_TICKS)
-    ax_phase.set_yticklabels(PI_LABELS, fontsize=10, color=BLACK)
-    ax_phase.set_ylim(-4.2, 4.2)
-    ax_phase.set_xlim(t[0], t[-1])
-
-    is_bin = all(c[3] for c in conv_results)
-    ax_phase.text(0.98, 0.97,
-                  "BINARISED ✓" if is_bin else "NOT YET BINARISED ✗",
-                  transform=ax_phase.transAxes, ha="right", va="top",
-                  fontsize=11, fontweight="bold",
-                  color=C_STABLE if is_bin else C_UNSTABLE,
-                  bbox=dict(boxstyle="round,pad=0.3", facecolor=WHITE,
-                            edgecolor=GRAY, alpha=0.95))
-    ax_phase.text(0.01, 0.97,
-                  f"$\\mu={MU_SIM:.4f}$  |  "
-                  f"$\\mu_{{\\rm bin}}={mu_bin:.4f}$  |  "
-                  f"$W_{{\\rm tot}}={w_total:.1f}$  |  "
-                  f"Best cut $={best_cut:.1f}$",
-                  transform=ax_phase.transAxes, ha="left", va="top",
-                  fontsize=9.5,
-                  bbox=dict(boxstyle="round,pad=0.28", facecolor=WHITE,
-                            edgecolor=GRAY, alpha=0.93))
-
-    spin_patches = [mpatches.Patch(color=SPIN_COLS[s % 20], label=f"spin {s}")
-                    for s in range(n)]
-    ax_phase.legend(handles=spin_patches, loc="lower right", fontsize=8,
-                    ncol=max(1, n // 5), framealpha=0.90)
-    _ax_style(ax_phase,
-              title=(f"Phase dynamics  $\\mu={MU_SIM:.4f}$  "
-                     f"({'above' if MU_SIM > mu_bin else 'below'} "
-                     f"$\\mu_{{\\rm bin}}={mu_bin:.4f}$)  |  "
-                     f"{args.n_init} random initial conditions"),
-              xlabel="time $t$",
-              ylabel="phase $\\theta_i(t)$  (rad)")
-
-    # ── convergence table ─────────────────────────────────────────────────────
-    ax_conv.set_facecolor(WHITE)
-    ax_conv.axis("off")
-    for sp in ax_conv.spines.values():
-        sp.set_edgecolor(BLACK); sp.set_linewidth(0.8)
-    ax_conv.set_title("ODE convergence — reached equilibria",
-                      color=BLACK, fontsize=11, pad=6)
-
-    cw    = max(n, 8)
-    sep   = "─" * (3 + cw + 8 + 8 + 5 + 8)
-    lines = [f"{'#':>3}  {'φ* bits':<{cw}}  {'H':>7}  "
-             f"{'cut':>7}  {'bin?':>4}  res", sep]
-
-    for i, (bits, H_c, cut_c, binarized, residual) in enumerate(conv_results):
-        b  = "".join(str(x) for x in bits)
-        bs = "✓" if binarized else "✗"
-        lines.append(f"{i:>3}  {b:<{cw}}  {H_c:>7.2f}  "
-                     f"{cut_c:>7.2f}  {bs:>4}  {residual:.3f}")
-
-    unique_conv = {}
-    for bits, H_c, cut_c, binarized, _ in conv_results:
-        if bits not in unique_conv:
-            unique_conv[bits] = {"H": H_c, "cut": cut_c, "count": 0}
-        unique_conv[bits]["count"] += 1
-
-    lines += ["", f"Unique equilibria reached: {len(unique_conv)}",
-              f"{'φ* bits':<{cw}}  {'H':>7}  {'cut':>7}  {'n':>3}",
-              "─" * (cw + 8 + 8 + 5)]
-    for bits, info in sorted(unique_conv.items(), key=lambda x: -x[1]["cut"]):
-        b = "".join(str(x) for x in bits)
-        lines.append(f"{b:<{cw}}  {info['H']:>7.2f}  "
-                     f"{info['cut']:>7.2f}  {info['count']:>3}")
-
-    ax_conv.text(0.03, 0.97, "\n".join(lines),
-                 transform=ax_conv.transAxes, va="top", ha="left",
-                 fontsize=7.5, fontfamily="monospace",
-                 bbox=dict(boxstyle="round,pad=0.4", facecolor=WHITE,
-                           edgecolor=GRAY, alpha=0.95))
-
-    fig.suptitle(
-        f"OIM Phase Dynamics  |  {args.graph}  |  "
-        f"$N={n}$,  $\\mu_{{\\rm bin}}={mu_bin:.4f}$  |  "
-        f"Best cut $={best_cut:.1f}$,  $W_{{\\rm tot}}={w_total:.1f}$",
-        color=BLACK, fontsize=12, fontweight="bold")
-    return fig
-
+    return dict(
+        theta_end  = theta,
+        bits       = bits,
+        H          = H,
+        cut        = cut,
+        residual   = residual,
+        is_binary  = (state_type == "M2-binary"),
+        state_type = state_type,
+        atom_types = atom_types,
+        nearest_eq = nearest_eq,
+    )
 
 # ═════════════════════════════════════════════════════════════════════════════
-# ── FIGURE 2  Bifurcation analysis ────────────────────────────────────────────
-# Row 0 | λ_max(D) bar chart  — full width
-# Row 1 | Bifurcation diagram — full width
+# FIGURE 2 — Bifurcation analysis  (unchanged)
 # ═════════════════════════════════════════════════════════════════════════════
 def make_figure2(args, n, edges, eq_data, sweep_data):
-
     rows       = eq_data["rows"]
     mu_bin     = eq_data["mu_bin"]
     w_total    = eq_data["w_total"]
@@ -326,15 +323,12 @@ def make_figure2(args, n, edges, eq_data, sweep_data):
 
     fig = plt.figure(figsize=(18, 12), facecolor=WHITE)
     gs  = gridspec.GridSpec(2, 1, figure=fig,
-                            height_ratios=[0.70, 1.30],
-                            hspace=0.45,
+                            height_ratios=[0.70, 1.30], hspace=0.45,
                             left=0.06, right=0.96, top=0.92, bottom=0.08)
     ax_lmbar = fig.add_subplot(gs[0])
     ax_bif   = fig.add_subplot(gs[1])
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # Row 0 — λ_max(D) bar chart
-    # ══════════════════════════════════════════════════════════════════════════
+    # ── bar chart ─────────────────────────────────────────────────────────────
     sorted_rows = sorted(rows, key=lambda r: r["lmax_D"])
     lmax_arr    = np.array([r["lmax_D"] for r in sorted_rows])
     cut_arr_s   = np.array([r["cut"]    for r in sorted_rows])
@@ -342,7 +336,7 @@ def make_figure2(args, n, edges, eq_data, sweep_data):
 
     ax_lmbar.bar(np.arange(n_eq), lmax_arr,
                  color=bar_cols, width=1.0, edgecolor="none", zorder=2)
-    ax_lmbar.axhline(0,          color=BLACK,     linewidth=0.9, zorder=3)
+    ax_lmbar.axhline(0,          color=BLACK,     linewidth=0.9,  zorder=3)
     ax_lmbar.axhline(mu_bin,     color=C_STABLE,  linewidth=2.0,
                      linestyle="--", zorder=5,
                      label=f"$\\mu_{{\\rm bin}} = {mu_bin:.3f}$")
@@ -360,16 +354,13 @@ def make_figure2(args, n, edges, eq_data, sweep_data):
     ax_lmbar.set_xlim(-1, n_eq)
     ax_lmbar.legend(fontsize=10, loc="upper left")
     _ax_style(ax_lmbar,
-              title=(f"$\\lambda_{{\\max}}(D(\\phi^*))$ for all $2^N = {n_eq}$ equilibria "
-                     f"(sorted by $\\lambda_{{\\max}}$)  —  "
-                     f"bar colour = cut quality  |  "
+              title=(f"$\\lambda_{{\\max}}(D(\\phi^*))$ for all $2^N={n_eq}$ equilibria  "
+                     f"(sorted)  |  bar colour = cut quality  |  "
                      f"stable at current $\\mu$: {eq_data['n_stable']}/{n_eq}"),
               xlabel="Equilibrium index",
               ylabel="$\\lambda_{\\max}(D(\\phi^*))$")
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # Row 1 — Bifurcation diagram
-    # ══════════════════════════════════════════════════════════════════════════
+    # ── bifurcation diagram ───────────────────────────────────────────────────
     norm_bif = mcolors.Normalize(vmin=0, vmax=best_cut)
     cmap_bif = plt.get_cmap("RdYlGn")
     bif_lo   = unique_lmax.min() - mu_vals.max() - 0.5
@@ -382,15 +373,14 @@ def make_figure2(args, n, edges, eq_data, sweep_data):
                         np.maximum(sweep_data["lmax_A_max_mu"], 0),
                         color=C_UNSTABLE, alpha=0.10, zorder=0)
     ax_bif.axhline(0, color=BLACK, linewidth=1.5, zorder=5,
-                   label="$\\lambda_{\\max}(A) = 0$  (stability boundary)")
+                   label="$\\lambda_{\\max}(A)=0$  (stability boundary)")
     ax_bif.axvline(current_mu, color=C_MU_LINE, linewidth=1.8,
                    linestyle="--", zorder=6,
-                   label=f"current $\\mu = {current_mu:.3f}$")
+                   label=f"current $\\mu={current_mu:.3f}$")
     ax_bif.axvline(mu_bin, color=BLACK, linewidth=1.8,
                    linestyle=":", zorder=7,
-                   label=f"$\\mu_{{\\rm bin}} = {mu_bin:.3f}$")
+                   label=f"$\\mu_{{\\rm bin}}={mu_bin:.3f}$")
 
-    # spread annotation y-positions to avoid overlap
     n_unique   = len(unique_lmax)
     ann_y_vals = np.linspace(bif_hi * 0.95, bif_hi * 0.05, n_unique)
 
@@ -399,11 +389,9 @@ def make_figure2(args, n, edges, eq_data, sweep_data):
         c  = cmap_bif(norm_bif(cut_mean))
         lw = 0.8 + 0.55 * np.log1p(cnt / 2.0)
         ax_bif.plot(mu_vals, lm - mu_vals, color=c, linewidth=lw, alpha=0.85)
-
         mu_star = lm
         if mu_vals[0] <= mu_star <= mu_vals[-1]:
-            ax_bif.scatter([mu_star], [0.0],
-                           color=c, s=55, zorder=7,
+            ax_bif.scatter([mu_star], [0.0], color=c, s=55, zorder=7,
                            edgecolors=BLACK, linewidths=0.7)
             ax_bif.annotate(
                 f"$\\mu^*={mu_star:.2f}$\n"
@@ -415,18 +403,6 @@ def make_figure2(args, n, edges, eq_data, sweep_data):
                 fontsize=7, color=c, zorder=8,
                 arrowprops=dict(arrowstyle="->", color=c, lw=0.65,
                                 shrinkA=2, shrinkB=2))
-
-    # right axis: # stable equilibria
-    ax_bif2 = ax_bif.twinx()
-    ax_bif2.plot(mu_vals, sweep_data["n_stable_mu"],
-                 color=C_STABLE, linewidth=2.5, linestyle="-",
-                 alpha=0.90, zorder=4, label="# stable eq.")
-    ax_bif2.set_ylabel("# stable equilibria", color=C_STABLE, fontsize=11)
-    ax_bif2.tick_params(axis="y", colors=C_STABLE, labelsize=9)
-    ax_bif2.set_ylim(-0.5, n_eq + 0.5)
-    for sp in ax_bif2.spines.values():
-        sp.set_edgecolor(BLACK); sp.set_linewidth(0.8)
-    ax_bif2.legend(fontsize=9, loc="center right")
 
     sm_bif = plt.cm.ScalarMappable(cmap=cmap_bif, norm=norm_bif)
     sm_bif.set_array([])
@@ -443,12 +419,10 @@ def make_figure2(args, n, edges, eq_data, sweep_data):
     ax_bif.text(0.01, 0.96, "← unstable", transform=ax_bif.transAxes,
                 ha="left", va="top", fontsize=10, color=C_UNSTABLE)
     _ax_style(ax_bif,
-              title=("Bifurcation diagram:  $\\lambda_{\\max}(D) - \\mu$  vs  $\\mu$  |  "
-                     "line colour = cut quality  |  "
-                     "dots annotated with $\\bar{H}$, cut, multiplicity  |  "
-                     "right axis = # stable equilibria"),
-              xlabel="$\\mu$  (SHIL / binarisation parameter)",
-              ylabel="$\\lambda_{\\max}(A) = \\lambda_{\\max}(D) - \\mu$")
+              title=("Bifurcation diagram:  $\\lambda_{\\max}(D)-\\mu$  vs  $\\mu$  |  "
+                     "line colour = cut quality  |  dots = stability transitions"),
+              xlabel="$\\mu$",
+              ylabel="$\\lambda_{\\max}(A)=\\lambda_{\\max}(D)-\\mu$")
 
     fig.suptitle(
         f"OIM Bifurcation Analysis  |  {args.graph}  |  "
@@ -460,98 +434,79 @@ def make_figure2(args, n, edges, eq_data, sweep_data):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# ── FIGURE 3  Quality analysis ────────────────────────────────────────────────
-# Left  | H vs cut scatter
-# Right | D(φ*) eigenvalue spectrum
+# FIGURE 3 — Quality analysis  (unchanged)
 # ═════════════════════════════════════════════════════════════════════════════
 def make_figure3(args, n, W, eq_data, conv_results):
-
-    rows       = eq_data["rows"]
-    best_cut   = eq_data["best_cut"]
-    w_total    = eq_data["w_total"]
-    mu_bin     = eq_data["mu_bin"]
+    rows = eq_data["rows"]
+    best_cut = eq_data["best_cut"]
+    w_total = eq_data["w_total"]
+    mu_bin = eq_data["mu_bin"]
     current_mu = eq_data["mu"]
-    reps       = pick_representatives(rows)
+    reps = pick_representatives(rows)
 
-    H_all       = np.array([r["H"]      for r in rows])
-    cut_all     = np.array([r["cut"]    for r in rows])
+    H_all = np.array([r["H"] for r in rows])
+    cut_all = np.array([r["cut"] for r in rows])
     stable_mask = np.array([r["stable"] for r in rows])
 
-    fig, (ax_hcut, ax_dspec) = plt.subplots(
+    fig, (ax_aspec, ax_dspec) = plt.subplots(
         1, 2, figsize=(16, 7), facecolor=WHITE)
     fig.subplots_adjust(wspace=0.32, left=0.07, right=0.97,
                         top=0.88, bottom=0.12)
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # Left — H vs cut scatter
-    # ══════════════════════════════════════════════════════════════════════════
-    ax_hcut.scatter(cut_all[~stable_mask], H_all[~stable_mask],
-                    c=C_UNSTABLE, s=20, alpha=0.45, zorder=2,
-                    label=f"unstable at $\\mu={current_mu:.2f}$")
-    ax_hcut.scatter(cut_all[stable_mask], H_all[stable_mask],
-                    c=C_STABLE, s=45, alpha=0.85, zorder=3,
-                    edgecolors=BLACK, linewidths=0.5,
-                    label=f"stable at $\\mu={current_mu:.2f}$")
+    # ── A(φ*) eigenvalue spectrum ─────────────────────────────────────────────
+    xidx = np.arange(1, n + 1)
+    ev_a_all_reps = np.concatenate([eq["ev_A"] for eq, _, _, _ in reps])
+    ev_a_lo, ev_a_hi = ev_a_all_reps.min(), ev_a_all_reps.max()
+    margin_a = max(0.06 * (ev_a_hi - ev_a_lo), 0.4)
 
-    cut_line = np.linspace(cut_all.min() - 0.3, cut_all.max() + 0.3, 300)
-    ax_hcut.plot(cut_line, w_total - 2.0 * cut_line,
-                 color=GRAY, linewidth=1.3, linestyle="-", alpha=0.65,
-                 zorder=1, label=f"$H = {w_total:.0f} - 2\\cdot$cut")
+    ax_aspec.fill_between([0.5, n + 0.5], ev_a_lo - margin_a, 0,
+                          color=C_STABLE, alpha=0.10, zorder=0)
+    ax_aspec.fill_between([0.5, n + 0.5], 0, ev_a_hi + margin_a,
+                          color=C_UNSTABLE, alpha=0.10, zorder=0)
+    ax_aspec.axhline(0, color=BLACK, linewidth=1.0, linestyle="--",
+                     alpha=0.55, zorder=2)
 
-    ax_hcut.axvline(best_cut,    color=C_BPART, linewidth=1.6,
-                    linestyle="--", alpha=0.8,
-                    label=f"best cut $={best_cut:.1f}$")
-    ax_hcut.axhline(H_all.min(), color=C_FERRO, linewidth=1.6,
-                    linestyle="--", alpha=0.8,
-                    label=f"min $H={H_all.min():.1f}$")
-
-    # overlay ODE convergence (unique equilibria only)
-    seen = set()
-    for bits, H_c, cut_c, binarized, _ in conv_results:
-        if bits in seen:
-            continue
-        seen.add(bits)
-        mk  = "*" if binarized else "^"
-        col = C_STABLE if binarized else C_UNSTABLE
-        ax_hcut.scatter([cut_c], [H_c], marker=mk,
-                        s=180 if binarized else 110,
-                        color=col, edgecolors=BLACK,
-                        linewidths=0.8, zorder=6)
-        b_str = "".join(str(b) for b in bits)
-        ax_hcut.annotate(
-            f"$[{b_str}]$",
-            xy=(cut_c, H_c),
-            xytext=(cut_c + best_cut * 0.025,
-                    H_c - (H_all.max() - H_all.min()) * 0.04),
-            fontsize=9, color=col,
-            arrowprops=dict(arrowstyle="->", color=col, lw=0.7,
+    for k_r, (eq, lbl, col, ls) in enumerate(reps):
+        ev_desc = eq["ev_A"][::-1]
+        ax_aspec.plot(xidx, ev_desc, color=col, linestyle=ls,
+                      linewidth=2.2, marker="o", markersize=8,
+                      label=lbl, zorder=3)
+        dy = margin_a * (0.6 + 0.35 * k_r)
+        ax_aspec.annotate(
+            f"$\\lambda_{{\\max}}={eq['lmax_A']:.3f}$\n"
+            f"$H={eq['H']:.1f}$ cut$={eq['cut']:.1f}$",
+            xy=(1, ev_desc[0]),
+            xytext=(1.6, ev_desc[0] + dy),
+            fontsize=9, color=col, zorder=5,
+            arrowprops=dict(arrowstyle="->", color=col, lw=0.9,
                             shrinkA=2, shrinkB=2))
 
-    star_p = mpatches.Patch(color=C_STABLE,   label="ODE → binarized (★)")
-    tri_p  = mpatches.Patch(color=C_UNSTABLE, label="ODE → not binarized (▲)")
-    hnd, lbl = ax_hcut.get_legend_handles_labels()
-    ax_hcut.legend(handles=hnd + [star_p, tri_p], fontsize=9, loc="upper right")
-    _ax_style(ax_hcut,
-              title=(f"Ising Hamiltonian $H$ vs cut value  —  "
-                     f"all $2^N={len(rows)}$ equilibria\n"
-                     f"$H = W_{{\\rm tot}} - 2\\cdot$cut  |  "
-                     f"$W_{{\\rm tot}}={w_total:.1f}$  |  "
-                     f"best cut $={best_cut:.1f}$  |  "
-                     f"$\\mu_{{\\rm bin}}={mu_bin:.3f}$"),
-              xlabel="Cut value",
-              ylabel="$H(\\sigma)$",
+    ax_aspec.set_xticks(xidx)
+    ax_aspec.set_xlim(0.5, n + 0.5)
+    ax_aspec.set_ylim(ev_a_lo - 2 * margin_a, ev_a_hi + 3.5 * margin_a)
+    ax_aspec.legend(fontsize=8.5, loc="lower left", ncol=1)
+    ax_aspec.text(0.98, 0.98,
+                  f"Jacobian at current $\\mu={current_mu:.3f}$\n"
+                  "$A(\\phi^*,\\mu)=D(\\phi^*)-\\mu I$\n"
+                  "Stable iff $\\lambda_{\\max}(A) < 0$",
+                  transform=ax_aspec.transAxes, ha="right", va="top",
+                  fontsize=9.5,
+                  bbox=dict(boxstyle="round,pad=0.35", facecolor=WHITE,
+                            edgecolor=GRAY, alpha=0.94))
+    _ax_style(ax_aspec,
+              title=("$A(\\phi^*,\\mu)$ Jacobian spectrum — 3 representative equilibria\n"
+                     "Blue: $\\lambda<0$ (stable dir) | Orange: $\\lambda>0$ (unstable dir)"),
+              xlabel="Eigenvalue rank $k$ (largest first)",
+              ylabel="$\\lambda_k\\left(A(\\phi^*)\\right)$",
               titlesize=11)
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # Right — D(φ*) eigenvalue spectrum
-    # ══════════════════════════════════════════════════════════════════════════
-    xidx        = np.arange(1, n + 1)
+    # ── D(φ*) eigenvalue spectrum ─────────────────────────────────────────────
     ev_all_reps = np.concatenate([eq["ev_D"] for eq, _, _, _ in reps])
     ev_lo, ev_hi = ev_all_reps.min(), ev_all_reps.max()
     margin = max(0.06 * (ev_hi - ev_lo), 0.4)
 
     ax_dspec.fill_between([0.5, n + 0.5], ev_lo - margin, 0,
-                          color=C_STABLE,   alpha=0.10, zorder=0)
+                          color=C_STABLE, alpha=0.10, zorder=0)
     ax_dspec.fill_between([0.5, n + 0.5], 0, ev_hi + margin,
                           color=C_UNSTABLE, alpha=0.10, zorder=0)
     ax_dspec.axhline(0, color=BLACK, linewidth=1.0, linestyle="--",
@@ -565,7 +520,7 @@ def make_figure3(args, n, W, eq_data, conv_results):
         dy = margin * (0.6 + 0.35 * k_r)
         ax_dspec.annotate(
             f"$\\lambda_{{\\max}}={eq['lmax_D']:.3f}$\n"
-            f"$H={eq['H']:.1f}$   cut$={eq['cut']:.1f}$",
+            f"$H={eq['H']:.1f}$ cut$={eq['cut']:.1f}$",
             xy=(1, ev_desc[0]),
             xytext=(1.6, ev_desc[0] + dy),
             fontsize=9, color=col, zorder=5,
@@ -577,35 +532,27 @@ def make_figure3(args, n, W, eq_data, conv_results):
     ax_dspec.set_ylim(ev_lo - 2 * margin, ev_hi + 3.5 * margin)
     ax_dspec.legend(fontsize=8.5, loc="lower left", ncol=1)
     ax_dspec.text(0.98, 0.98,
-                  "$A(\\phi^*,\\mu) = D(\\phi^*) - \\mu I$\n"
-                  "$\\lambda_k(A) = \\lambda_k(D) - \\mu$\n"
-                  "Stable iff $\\mu > \\lambda_{\\max}(D)$",
+                  "$D(\\phi^*)$ depends only on topology\n"
+                  "$\\lambda_k(A)=\\lambda_k(D)-\\mu$\n"
+                  "Stable iff $\\mu>\\lambda_{\\max}(D)$",
                   transform=ax_dspec.transAxes, ha="right", va="top",
                   fontsize=9.5,
                   bbox=dict(boxstyle="round,pad=0.35", facecolor=WHITE,
                             edgecolor=GRAY, alpha=0.94))
     _ax_style(ax_dspec,
-              title=("$D(\\phi^*)$ eigenvalue spectrum  —  "
-                     "3 representative equilibria\n"
-                     "Blue shading: $\\lambda<0$  |  "
-                     "Orange: $\\lambda>0$  |  "
-                     "Annotation: $\\lambda_{\\max}$, $H$, cut"),
-              xlabel="Eigenvalue rank $k$  (largest first)",
-              ylabel="$\\lambda_k\\left((D(\\phi^*)\\right)$",
+              title=("$D(\\phi^*)$ eigenvalue spectrum — 3 representative equilibria\n"
+                     "Blue: $\\lambda<0$ | Orange: $\\lambda>0$ | Annotated: $\\lambda_{\\max}$, $H$, cut"),
+              xlabel="Eigenvalue rank $k$ (largest first)",
+              ylabel="$\\lambda_k\\left(D(\\phi^*)\\right)$",
               titlesize=11)
 
     fig.suptitle(
-        f"OIM Quality Analysis  |  {args.graph}  |  "
-        f"$N={n}$,  $2^N={len(rows)}$ equilibria  |  "
-        f"$\\mu_{{\\rm bin}}={mu_bin:.4f}$  |  "
-        f"Best cut $={best_cut:.1f}$,  $W_{{\\rm tot}}={w_total:.1f}$",
+        f"OIM Quality Analysis | {args.graph} | "
+        f"$N={n}$, $2^N={len(rows)}$ equilibria | "
+        f"$\\mu_{{\\rm bin}}={mu_bin:.4f}$ | "
+        f"Best cut $={best_cut:.1f}$, $W_{{\\rm tot}}={w_total:.1f}$",
         color=BLACK, fontsize=12, fontweight="bold")
     return fig
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-# Entry point
-# ═════════════════════════════════════════════════════════════════════════════
 def main():
     parser = argparse.ArgumentParser(
         description="OIM eigenvalue sweep & bifurcation analysis — 3 figures")
@@ -621,7 +568,6 @@ def main():
                         help="Save all 3 figures as PDF+PNG")
     args = parser.parse_args()
 
-    # ── load ──────────────────────────────────────────────────────────────────
     print(f"\nLoading graph: {args.graph}")
     W     = read_graph(args.graph)
     n     = W.shape[0]
@@ -654,7 +600,6 @@ def main():
     print(f"  μ sweep: [{mu_min_eff:.4f}, {mu_max_eff:.4f}]  ({args.n_mu} steps)")
     print(f"  Reference μ: {mu_ref:.4f}")
 
-    # ── analysis ──────────────────────────────────────────────────────────────
     oim = OIMMaxCut(W, mu=mu_ref, seed=args.seed)
     print(f"\n  Equilibrium analysis at μ={mu_ref:.4f}...")
     eq_data = analyse_equilibria(oim)
@@ -667,50 +612,79 @@ def main():
     sweep_data = mu_sweep(oim, eq_data, mu_vals)
     print(f"  Bifurcation points: {len(sweep_data['bifurcation_pts'])}")
 
-    # ── simulation ────────────────────────────────────────────────────────────
-    MU_SIM  = max(global_lmax_min + 0.01, mu_min_eff + 0.02)
+    # ── simulation  ───────────────────────────────────────────────────────────
+    # FIX: uniform(-π, π) — NOT the original uniform(-0.08, 0.08).
+    #
+    # The original narrow range was the root cause of the ±π/2 trap:
+    #
+    #   1. All N spins start near 0.
+    #   2. Bipartite coupling antisymmetrically pushes partition A toward +φ
+    #      and partition B toward -φ, transiting through ±π/2.
+    #   3. At θ = ±π/2, the SHIL restoring force is
+    #          (μ/2) sin(2·π/2) = (μ/2) sin(π) = 0
+    #      so there is NO force to escape from ±π/2.
+    #   4. Escape happens via higher-order corrections with time scale ∝ 1/μ.
+    #      At μ = 0.01 that is ≈ 100 × t_end = 8000 time units — far beyond
+    #      the integration window of 80.
+    #
+    # Wide initialisation from [−π, π] breaks this symmetry: each trajectory
+    # starts in a different region of phase space and converges directly to
+    # a binary {0, π} equilibrium without passing through ±π/2.
+    #
+    # The same fix is used in experiment_maxcut_interactive.py (line 153):
+    #     phi0_list = [rng.uniform(-np.pi, np.pi, N) for _ in range(n_init)]
+
+    # ========================================================================= #
+
+    MU_SIM  = max(global_lmax_min + 0.1, mu_min_eff + 0.02) # Here is where we tune the mu where we will test a higher mu or not.
     rng     = np.random.default_rng(args.seed)
-    phi0s   = [rng.uniform(-0.08, 0.08, n) for _ in range(args.n_init)]
+    phi0s   = [rng.uniform(-np.pi, np.pi, n) for _ in range(args.n_init)]  # ← FIX
     oim_sim = OIMMaxCut(W, mu=MU_SIM, seed=args.seed)
     print(f"\n  Simulating {args.n_init} trajectories at "
           f"μ={MU_SIM:.4f}  (t=0..{args.t_end})...")
     sols = oim_sim.simulate_many(phi0s, t_span=(0., args.t_end), n_points=500)
     print("  Done.\n")
 
-    # ── convergence ───────────────────────────────────────────────────────────
+    # ── convergence analysis ───────────────────────────────────────────────────
+    binary_equilibria = eq_data["rows"]
+    conv_results      = [identify_convergence(sol, W, binary_equilibria, bin_tol=0.05)
+                         for sol in sols]
+
+    # console report
     cw = max(n, 8)
-    print(f"  {'#':>3}  {'φ* bits':<{cw}}  {'H':>8}  "
-          f"{'cut':>8}  {'bin?':>5}  residual")
-    print("  " + "─" * (3 + cw + 8 + 8 + 5 + 12))
-    conv_results = []
-    for i, sol in enumerate(sols):
-        bits, H_c, cut_c, binarized, residual = identify_convergence(sol, W)
-        conv_results.append((bits, H_c, cut_c, binarized, residual))
-        b = "".join(str(x) for x in bits)
-        print(f"  {i:>3}  {b:<{cw}}  {H_c:>8.3f}  {cut_c:>8.3f}  "
-              f"{'✓ yes' if binarized else '✗ no ':>5}  {residual:.4f}")
+    print(f"  {'#':>3}  {'type':<16}  {'bits':<{cw}}  {'H':>8}  "
+          f"{'cut':>8}  {'residual':>9}  {'nearest M2':<{cw}}  dist  stable?")
+    print("  " + "─" * (3 + 16 + cw + 8 + 8 + 9 + cw + 7 + 7))
+    for i, c in enumerate(conv_results):
+        b   = "".join(str(x) for x in c["bits"])
+        neq = c["nearest_eq"]
+        nb  = "".join(str(x) for x in neq["bits"]) if neq else "—"
+        nd  = f"{neq['dist_L2']:.3f}"               if neq else "—"
+        ns  = ("✓" if neq["stable"] else "✗")        if neq else "—"
+        print(f"  {i:>3}  {c['state_type']:<16}  {b:<{cw}}  {c['H']:>8.3f}  "
+              f"{c['cut']:>8.3f}  {c['residual']:>9.5f}  {nb:<{cw}}  {nd}  {ns}")
 
-    unique_conv = {}
-    for bits, H_c, cut_c, binarized, _ in conv_results:
-        if bits not in unique_conv:
-            unique_conv[bits] = {"H": H_c, "cut": cut_c, "count": 0}
-        unique_conv[bits]["count"] += 1
-    print(f"\n  Unique equilibria reached: {len(unique_conv)}")
-    for bits, info in sorted(unique_conv.items(), key=lambda x: -x[1]["cut"]):
-        b = "".join(str(x) for x in bits)
-        print(f"    φ*={b}  H={info['H']:.3f}  "
-              f"cut={info['cut']:.3f}  "
-              f"count={info['count']}/{args.n_init}")
+    summary = defaultdict(lambda: {"count": 0, "residuals": []})
+    for c in conv_results:
+        key = (c["state_type"], c["bits"])
+        summary[key]["count"] += 1
+        summary[key]["state_type"] = c["state_type"]
+        summary[key]["residuals"].append(c["residual"])
 
-    # ── figures ───────────────────────────────────────────────────────────────
-    fig1 = make_figure1(args, n, W, eq_data, sols, MU_SIM, conv_results)
+    print(f"\n  Unique terminal states: {len(summary)}")
+    for (stype, bits), sm in sorted(summary.items(),
+                                    key=lambda x: -x[1]["count"]):
+        b = "".join(str(x) for x in bits)
+        print(f"    type={stype:<16}  bits={b}  "
+              f"count={sm['count']}/{args.n_init}  "
+              f"mean_res={np.mean(sm['residuals']):.5f}")
+
     fig2 = make_figure2(args, n, edges, eq_data, sweep_data)
     fig3 = make_figure3(args, n, W, eq_data, conv_results)
 
     if args.save:
         stem = args.graph.replace("/", "_").replace("\\", "_").rstrip(".txt")
-        for tag, fig in [("dynamics", fig1),
-                         ("bifurcation", fig2),
+        for tag, fig in [("bifurcation", fig2),
                          ("quality", fig3)]:
             for ext in ("pdf", "png"):
                 fname = f"oim_{tag}_{stem}.{ext}"
