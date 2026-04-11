@@ -344,7 +344,6 @@ def make_figures(args, n, w_total,
 
     Figure 1 — Phase 1 scan
     Figure 2 — Phase 2 quality sweep
-    Figure 3 — Best trajectory at μ̂_bin vs best-cut μ
     """
     p1_mu   = np.array([r["mu"]          for r in p1_records])
     p1_bin  = np.array([r["bin_fraction"] for r in p1_records])
