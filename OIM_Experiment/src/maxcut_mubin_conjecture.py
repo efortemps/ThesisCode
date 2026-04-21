@@ -995,6 +995,354 @@ def make_figure4(results, args):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Figure 5 — Structural comparison: 4 worst vs 1 best performing graph
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def graph_structural_metrics(r: dict) -> dict:
+    """
+    Compute all structural metrics for one graph result dict.
+
+    Properties computed
+    ───────────────────
+    Basic
+      n_edges        : number of edges
+      density        : |E| / (N*(N-1)/2)
+      w_total        : sum of edge weights / 2
+
+    Degree statistics
+      degrees        : (N,) array of node degrees
+      deg_mean/std/min/max
+
+    Spectral (graph Laplacian L = diag(degree) - W)
+      lap_eigenvalues  : all N eigenvalues of L, sorted ascending
+      fiedler          : 2nd smallest eigenvalue of L (algebraic connectivity)
+                         > 0 iff graph is connected
+      lap_spectral_gap : lambda_2 - lambda_1 of L
+      lap_lambda_max   : largest eigenvalue of L
+
+    Adjacency spectrum
+      adj_eigenvalues  : eigenvalues of W sorted descending
+      adj_lambda_max   : largest eigenvalue of W (spectral radius)
+      adj_symmetric    : True if spectrum is symmetric (±λ), i.e. bipartite
+
+    Bipartiteness
+      is_bipartite     : True if 2-colorable (BFS check)
+      bipart_ratio     : best_cut / w_total  (= 1 for bipartite graphs)
+
+    Frustration (OIM context)
+      frustration_index : fraction of edges that are "unsatisfied" at best cut
+                          = (w_total - best_cut) / w_total
+                          0 for bipartite, > 0 for frustrated graphs
+
+    Clustering
+      n_triangles      : number of triangles  (tr(W^3) / 6)
+      mean_clustering  : mean local clustering coefficient
+                         c_i = (# triangles through i) / (deg_i*(deg_i-1)/2)
+
+    OIM-specific
+      mu_bin_exact     : binarisation threshold (from experiment)
+      n_opt_bin        : # ICs that found the global optimum at mu_bin
+      n_opt_configs    : number of globally optimal spin configurations
+      best_cut         : global Max-Cut value
+    """
+    W        = r["W"]
+    N        = r["N"]
+    best_cut = r["best_cut"]
+    w_total  = r["w_total"]
+
+    # ── Basic ─────────────────────────────────────────────────────────────────
+    n_edges  = int(np.sum(W)) // 2
+    density  = n_edges / max(N * (N - 1) // 2, 1)
+
+    # ── Degree ────────────────────────────────────────────────────────────────
+    degrees  = W.sum(axis=1)
+    deg_mean = float(degrees.mean())
+    deg_std  = float(degrees.std())
+    deg_min  = int(degrees.min())
+    deg_max  = int(degrees.max())
+
+    # ── Laplacian spectrum ────────────────────────────────────────────────────
+    L          = np.diag(degrees) - W
+    lap_eigs   = np.sort(np.linalg.eigvalsh(L))
+    fiedler    = float(lap_eigs[1]) if N > 1 else 0.0
+    lap_gap    = float(lap_eigs[1] - lap_eigs[0]) if N > 1 else 0.0
+    lap_lmax   = float(lap_eigs[-1])
+
+    # ── Adjacency spectrum ────────────────────────────────────────────────────
+    adj_eigs   = np.sort(np.linalg.eigvalsh(W))[::-1]   # descending
+    adj_lmax   = float(adj_eigs[0])
+    # Bipartite iff spectrum is symmetric: all eigenvalues come in ±λ pairs
+    adj_sym    = bool(np.allclose(np.sort(adj_eigs),
+                                   -np.sort(adj_eigs[::-1]), atol=1e-6))
+
+    # ── Bipartiteness (BFS 2-coloring) ────────────────────────────────────────
+    colour   = -np.ones(N, dtype=int)
+    is_bip   = True
+    colour[0] = 0
+    queue     = [0]
+    while queue and is_bip:
+        v = queue.pop(0)
+        for u in range(N):
+            if W[v, u] > 0:
+                if colour[u] == -1:
+                    colour[u] = 1 - colour[v]
+                    queue.append(u)
+                elif colour[u] == colour[v]:
+                    is_bip = False
+                    break
+
+    bipart_ratio     = best_cut / max(w_total, 1e-9)
+    frustration_idx  = 1.0 - bipart_ratio   # 0 for bipartite
+
+    # ── Clustering ────────────────────────────────────────────────────────────
+    W3          = W @ W @ W
+    n_triangles = int(round(np.trace(W3) / 6.0))
+
+    clust = []
+    for i in range(N):
+        di = int(degrees[i])
+        if di < 2:
+            clust.append(0.0)
+        else:
+            # number of edges among neighbours of i
+            nbrs   = np.where(W[i] > 0)[0]
+            e_nbrs = 0
+            for a in nbrs:
+                for b in nbrs:
+                    if a < b and W[a, b] > 0:
+                        e_nbrs += 1
+            clust.append(2.0 * e_nbrs / (di * (di - 1)))
+    mean_clust = float(np.mean(clust))
+
+    return dict(
+        n_edges=n_edges, density=density, w_total=w_total,
+        degrees=degrees,
+        deg_mean=deg_mean, deg_std=deg_std, deg_min=deg_min, deg_max=deg_max,
+        lap_eigenvalues=lap_eigs, fiedler=fiedler,
+        lap_spectral_gap=lap_gap, lap_lambda_max=lap_lmax,
+        adj_eigenvalues=adj_eigs, adj_lambda_max=adj_lmax,
+        adj_symmetric=adj_sym,
+        is_bipartite=is_bip, bipart_ratio=bipart_ratio,
+        frustration_index=frustration_idx,
+        n_triangles=n_triangles, mean_clustering=mean_clust,
+        mu_bin_exact=r["mu_bin_exact"],
+        n_opt_bin=r["n_opt_bin"], n_init=len(r["cuts_bin"]),
+        n_opt_configs=r["n_opt_configs"],
+        best_cut=best_cut,
+    )
+
+
+def make_figure5(results: list, args) -> plt.Figure:
+
+    n_init   = args.n_init
+    n_graphs = len(results)
+
+    n_opt_arr = np.array([r["n_opt_bin"] for r in results])
+    mu_arr    = np.array([r["mu_bin_exact"] for r in results])
+
+    worst_idxs = sorted(range(n_graphs),
+                        key=lambda i: (n_opt_arr[i], -mu_arr[i]))[:4]
+    best_idx   = sorted(range(n_graphs),
+                        key=lambda i: (-n_opt_arr[i], mu_arr[i]))[0]
+
+    col_idxs  = worst_idxs + [best_idx]
+    col_roles = ["worst"] * 4 + ["best"]
+    n_cols    = 5
+
+    metrics = [graph_structural_metrics(results[i]) for i in col_idxs]
+
+    # ── NEW LAYOUT (split figure) ─────────────────────────────────────────────
+    fig = plt.figure(figsize=(26, 22), facecolor=WHITE)
+
+    outer = gridspec.GridSpec(2, 1, figure=fig,
+                              height_ratios=[3.2, 1.8],
+                              hspace=0.28,
+                              left=0.04, right=0.98,
+                              top=0.94, bottom=0.04)
+
+    gs_top = gridspec.GridSpecFromSubplotSpec(
+        3, n_cols, subplot_spec=outer[0],
+        hspace=0.52, wspace=0.38
+    )
+
+    gs_bot = gridspec.GridSpecFromSubplotSpec(
+        1, n_cols, subplot_spec=outer[1],
+        wspace=0.38
+    )
+
+    col_header_colours = {
+        "worst": C_RED,
+        "best":  C_GREEN,
+    }
+
+    # ─────────────────────────────────────────────────────────────────────────
+    for col, (g_idx, role, m) in enumerate(zip(col_idxs, col_roles, metrics)):
+        r       = results[g_idx]
+        W       = r["W"]
+        N       = r["N"]
+        hcol    = col_header_colours[role]
+
+        # ── Row 0: Adjacency ────────────────────────────────────────────────
+        ax0 = fig.add_subplot(gs_top[0, col])
+        ax0.set_facecolor(WHITE)
+
+        deg_order = np.argsort(-m["degrees"])
+        W_sorted  = W[np.ix_(deg_order, deg_order)]
+
+        im = ax0.imshow(W_sorted, cmap="Blues", vmin=0, vmax=1,
+                        interpolation="nearest", aspect="auto")
+
+        for k in range(N + 1):
+            ax0.axhline(k - 0.5, color=LIGHT, linewidth=0.3)
+            ax0.axvline(k - 0.5, color=LIGHT, linewidth=0.3)
+
+        if N <= 12:
+            labels = [str(deg_order[i]) for i in range(N)]
+            ax0.set_xticks(range(N)); ax0.set_xticklabels(labels, fontsize=5.5)
+            ax0.set_yticks(range(N)); ax0.set_yticklabels(labels, fontsize=5.5)
+        else:
+            ax0.set_xticks([]); ax0.set_yticks([])
+
+        for sp in ax0.spines.values():
+            sp.set_edgecolor(hcol); sp.set_linewidth(2.0 if role == "best" else 1.2)
+
+        role_label = "★ BEST" if role == "best" else f"✗ WORST #{col+1}"
+        ax0.set_title(
+            f"{role_label}  —  Graph {g_idx+1}\n"
+            f"$n_{{\\rm opt}}@\\mu_{{\\rm bin}} = {m['n_opt_bin']}/{n_init}$",
+            color=hcol, fontsize=9, fontweight="bold", pad=4)
+
+        if col == n_cols - 1:
+            cb = fig.colorbar(im, ax=ax0, fraction=0.046, pad=0.04)
+            cb.ax.tick_params(labelsize=6)
+
+        # ── Row 1: Degree ───────────────────────────────────────────────────
+        ax1 = fig.add_subplot(gs_top[1, col])
+        ax1.set_facecolor(WHITE)
+
+        deg_vals, deg_counts = np.unique(m["degrees"].astype(int),
+                                          return_counts=True)
+
+        ax1.bar(deg_vals, deg_counts, color=hcol, alpha=0.75,
+                edgecolor=BLACK, linewidth=0.5)
+
+        ax1.axvline(m["deg_mean"], color=C_AMBER, linestyle="--",
+                    label=f"{m['deg_mean']:.1f}")
+
+        ax1.set_title("Degree distribution", fontsize=8.5, fontweight="bold")
+        ax1.grid(True, axis="y", color=LIGHT, linewidth=0.5)
+        ax1.legend(fontsize=7)
+
+        # ── Row 2: Spectrum ─────────────────────────────────────────────────
+        ax2 = fig.add_subplot(gs_top[2, col])
+        ax2.set_facecolor(WHITE)
+
+        eigs = m["lap_eigenvalues"]
+        x    = np.arange(N)
+
+        ax2.plot(x, eigs, marker="o", color=hcol)
+        ax2.fill_between(x, eigs, alpha=0.2, color=hcol)
+
+        ax2.scatter([1], [m["fiedler"]], color=C_AMBER, zorder=5)
+
+        ax2.set_title("Laplacian spectrum", fontsize=8.5, fontweight="bold")
+        ax2.grid(True, color=LIGHT)
+
+        # ── Row 3: PAPER-STYLE PANEL ────────────────────────────────────────
+        ax3 = fig.add_subplot(gs_bot[0, col])
+        ax3.axis("off")
+        ax3.set_facecolor(WHITE)
+
+        # ---- Title bar (paper style) ----
+        ax3.text(0.0, 1.02,
+                 "Key structural metrics",
+                 fontsize=9.5, fontweight="bold",
+                 color=hcol, ha="left", va="bottom",
+                 transform=ax3.transAxes)
+
+        # ---- Sections ----
+        lines = [
+            ("Graph", ""),
+            (f"N = {N}", f"|E| = {m['n_edges']}"),
+            (f"density = {m['density']:.3f}", f"W = {m['w_total']:.0f}"),
+
+            ("", ""),
+            ("Degree", ""),
+            (f"{m['deg_mean']:.2f} ± {m['deg_std']:.2f}",
+             f"[{m['deg_min']}, {m['deg_max']}]"),
+
+            ("", ""),
+            ("Structure", ""),
+            (f"Bipartite: {'YES' if m['is_bipartite'] else 'NO'}",
+             f"ratio = {m['bipart_ratio']:.3f}"),
+            (f"Frustration = {m['frustration_index']:.3f}", ""),
+
+            ("", ""),
+            ("Spectrum", ""),
+            (f"λ₂ = {m['fiedler']:.3f}",
+             f"λ_max(L) = {m['lap_lambda_max']:.3f}"),
+
+            ("", ""),
+            ("Dynamics", ""),
+            (f"μ_bin = {m['mu_bin_exact']:.3f}",
+             f"#opt = {m['n_opt_configs']}"),
+            (f"Best cut = {m['best_cut']:.1f}",
+             f"{m['bipart_ratio']:.3f}"),
+            (f"IC→opt = {m['n_opt_bin']}/{m['n_init']}", ""),
+        ]
+
+        # ---- Render text grid (clean paper look) ----
+        y = 0.95
+        dy = 0.055
+
+        for left, right in lines:
+            if left == "" and right == "":
+                y -= dy * 0.5
+                continue
+
+            is_header = right == "" and not left.startswith("λ")
+
+            if is_header:
+                ax3.text(0.0, y, left,
+                         fontsize=8.5, fontweight="bold",
+                         color=hcol, ha="left", va="center",
+                         transform=ax3.transAxes)
+            else:
+                ax3.text(0.0, y, left,
+                         fontsize=8.2, color=BLACK,
+                         ha="left", va="center",
+                         transform=ax3.transAxes)
+
+                if right:
+                    ax3.text(0.55, y, right,
+                             fontsize=8.2, color=BLACK,
+                             ha="left", va="center",
+                             transform=ax3.transAxes)
+
+            y -= dy
+
+        # subtle box around panel
+        for spine in ax3.spines.values():
+            spine.set_visible(True)
+            spine.set_edgecolor(LIGHT)
+            spine.set_linewidth(0.8)
+
+    # ── Separator ───────────────────────────────────────────────────────────
+    x_sep = (gs_top[0, 3].get_position(fig).x1 +
+             gs_top[0, 4].get_position(fig).x0) / 2
+
+    fig.add_artist(plt.Line2D([x_sep, x_sep], [0.03, 0.97],
+                             transform=fig.transFigure,
+                             linestyle="--", color=BLACK, alpha=0.4))
+
+    # ── Title ───────────────────────────────────────────────────────────────
+    fig.suptitle(
+        f"Figure 5 — Structural comparison (worst vs best)",
+        fontsize=12, fontweight="bold")
+
+    return fig
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Entry point
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1021,13 +1369,15 @@ def main():
     fig2 = make_figure2(results, args)   # spectral fingerprint
     fig3 = make_figure3(results, args)   # summary statistics
     fig4 = make_figure4(results, args)   # worst-graph trajectories + table
+    fig5 = make_figure5(results, args)   # structural comparison: 4 worst vs best
 
     if args.save:
         tag = f"N{args.N}_p{args.p1:.2f}_ng{args.n_graphs}"
         for name, fig in [("histogram",  fig1),
                            ("spectral",   fig2),
                            ("summary",    fig3),
-                           ("worst_traj", fig4)]:
+                           ("worst_traj", fig4),
+                           ("structure",  fig5)]:
             for ext in ("pdf", "png"):
                 fname = f"oim_conjecture_{name}_{tag}.{ext}"
                 fig.savefig(fname, bbox_inches="tight", dpi=150)

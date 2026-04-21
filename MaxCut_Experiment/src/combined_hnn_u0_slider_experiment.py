@@ -111,25 +111,55 @@ def hessian_at_origin(W, u0):
 
 def scan_equilibria(W):
     """
-    Enumerate all 2^n binary spin configurations.
+    Enumerate all 2^n binary spin configurations and, for each, compute:
+      - cut value
+      - Ising Hamiltonian H(s) = 0.5 * s^T W s
+      - The per-equilibrium stability threshold  u0_i* (analogous to OIM's
+        lambda_max(D(phi*)) per equilibrium).
 
-    Returns:
-        rows: list of dicts {bits, s, cut}
-        best_cut: maximum cut over all 2^n states
-        w_total: sum of weights / 2
-        u0_bin: |lambda_min(W)| as a crude "binarisation" threshold
+    Per-equilibrium stability threshold
+    ─────────────────────────────────────
+    The Hessian at a *binary* corner s* = pm 1 is:
+        H_ij(s*) = W_ij + delta_ij * u0 / (1 - s_i*^2)
+    Because s_i* = pm 1 exactly, (1 - s_i*^2) = 0, so the Hessian diverges
+    at the binary corners themselves.  The meaningful quantity is the LIMIT
+    as u0 -> 0, reached by evaluating H at the *continuous fixed point*
+    s_tilde*(u0) near s* (found by fixed-point iteration).
+
+    However, a cleaner per-equilibrium threshold can be derived in u-space:
+    The Jacobian of the ODE f(u) = -u - W tanh(u/u0) at u* is
+        J_ij(u*) = -delta_ij - W_ij / u0 * (1 - s_i*^2)
+    At a binary corner u_i* -> pm infty:  (1 - s_i*^2) -> 0, so J -> -I
+    (always stable).  Therefore every binary corner is a stable equilibrium
+    for small enough u0 -- there is NO per-corner instability analogous to
+    OIM's mu_i* threshold.  This is the key difference from OIM.
+
+    For comparison with OIM we instead report, for every binary state:
+        lambda_min_H0 = lambda_min(W) + u0  [Hessian at origin]
+    which is negative iff u0 < u0_bin = |lambda_min(W)| — i.e. the GLOBAL
+    threshold, same for every equilibrium.  Per-equilibrium analysis for HNN
+    requires finding the continuous fixed point (see make_spectrum_figure).
+
+    Global binarisation threshold
+    ──────────────────────────────
+    u0_bin = |lambda_min(W)|
+    Interpretation (OPPOSITE sign from OIM's mu_bin):
+      u0 < u0_bin  =>  origin is UNSTABLE  =>  system binarises  (GOOD)
+      u0 > u0_bin  =>  origin is STABLE    =>  system may stagnate near 0
     """
     n = W.shape[0]
-    # crude threshold: where origin H = W + u0 I becomes PSD
-    u0_bin = float(abs(np.linalg.eigvalsh(W)[0]))
+    # Threshold: origin H(0) = W + u0*I changes from indefinite to PD at u0_bin
+    lam_min_W = float(np.linalg.eigvalsh(W)[0])
+    u0_bin    = float(abs(lam_min_W))   # = max(0, -lam_min_W)
 
     rows = []
     best_cut = 0.0
     for bits in iproduct([0, 1], repeat=n):
-        s = np.array([1.0 if b == 1 else -1.0 for b in bits], dtype=float)
+        s   = np.array([1.0 if b == 1 else -1.0 for b in bits], dtype=float)
         cut = 0.25 * float(np.sum(W * (1.0 - np.outer(s, s))))
+        H_ising = 0.5 * float(s @ W @ s)   # Ising Hamiltonian; min <=> max cut
         best_cut = max(best_cut, cut)
-        rows.append(dict(bits=bits, s=s, cut=cut))
+        rows.append(dict(bits=bits, s=s, cut=cut, H_ising=H_ising))
 
     return dict(
         rows=rows,
@@ -138,6 +168,7 @@ def scan_equilibria(W):
         n=n,
         total=len(rows),
         u0_bin=u0_bin,
+        lam_min_W=lam_min_W,
     )
 
 
@@ -161,7 +192,15 @@ def identify_convergence(sol, W, u0, best_cut, bintol=0.05):
     - bits (sign of s_final).
     - cut value.
     - residual = max_i | |s_i| - 1 |.
-    - type: M2-binary / M1-mixed / Type-III / not-converged.
+    - type:
+        M2-binary    : all |s_i| ≈ 1  (converged to ±1 corners)
+        M1-mixed     : some |s_i| ≈ 1, some |s_i| ≈ 0, none intermediate
+        Type-III     : at least one s_i at an intermediate value (≠ 0 or ±1)
+        not-converged: all |s_i| near 0 (stuck at origin)
+
+    Note: the original code had `elif nz + no + nh == len(s_final)` as the
+    Type-III guard, which is a tautology (nh is defined as n - nz - no), so
+    Type-III was NEVER reachable. Fixed below.
     """
     s_final = np.tanh(sol.y[:, -1] / u0)
     sigma = np.sign(s_final)
@@ -169,19 +208,18 @@ def identify_convergence(sol, W, u0, best_cut, bintol=0.05):
 
     cut = 0.25 * float(np.sum(W * (1.0 - np.outer(sigma, sigma))))
 
-    # classification
-    nz = sum(1 for s in s_final if abs(s) < bintol)
-    no = sum(1 for s in s_final if abs(abs(s) - 1.0) < bintol)
-    nh = len(s_final) - nz - no
+    nz = sum(1 for s in s_final if abs(s) < bintol)           # near 0
+    no = sum(1 for s in s_final if abs(abs(s) - 1.0) < bintol) # near ±1
+    nh = len(s_final) - nz - no                                 # intermediate
 
     if np.max(np.abs(s_final)) < 1e-3:
-        stype = "not-converged"
+        stype = "not-converged"       # all activations near 0
     elif no == len(s_final):
-        stype = "M2-binary"
-    elif nz + no + nh == len(s_final):
-        stype = "M1-mixed"
+        stype = "M2-binary"           # every spin at ±1
+    elif nh == 0:
+        stype = "M1-mixed"            # mix of 0 and ±1, nothing intermediate
     else:
-        stype = "Type-III"
+        stype = "Type-III"            # at least one spin at a continuous value
 
     residual = float(np.max(np.abs(np.abs(s_final) - 1.0)))
     bits = tuple(1 if s > 0 else 0 for s in sigma)
@@ -366,8 +404,10 @@ def _draw_styled_table(ax, conv_list, best_cut, n_init, u0, u0_bin):
     ) - 0.02
 
     diff = u0 - u0_bin
+    # u0 < u0_bin  =>  origin is unstable  =>  binarisation FAVOURED (good)
+    # u0 > u0_bin  =>  origin is stable    =>  network may stagnate at 0 (bad)
     origin_stable = diff > 0
-    status = "origin stable ✗" if origin_stable else "origin unstable ✓"
+    status = "origin STABLE — may stagnate ✗" if origin_stable else "origin UNSTABLE — binarises ✓"
     sc = C_ORANGE if origin_stable else C_GREEN
 
     ax.text(
@@ -662,8 +702,9 @@ def make_spectrum_figure(ctrl, eq_data, W, args):
         xlim=(0.5, n + 0.5),
         ylim=(ev_W[0] - margin, ev_W[-1] + ctrl.u0_arr[-1] + margin),
         title=(
-            r"Hessian $H(0)$ spectrum at Origin ($s=0$)" "\n"
-            r"($\lambda_{min} < 0$ means unstable, moving to corners)"
+            r"Hessian $H(0) = W + u_0 I$ spectrum at Origin ($s=0$)" "\n"
+            r"$\lambda_{\min}(H) > 0 \Leftrightarrow u_0 > u_{0,\mathrm{bin}}$"
+            " — origin stable (BAD: network stagnates)"
         ),
     )
 
@@ -700,8 +741,8 @@ def make_spectrum_figure(ctrl, eq_data, W, args):
         xlim=(0.5, n + 0.5),
         ylim=(-1, ev_W[-1] + ctrl.u0_arr[-1] * 20),
         title=(
-            r"Hessian $H(s^*)$ spectrum at Converged Equilibria" "\n"
-            r"(Diagonal dominance pushes eigenvalues up)"
+            r"Hessian $H(\tilde{s}^*)$ at continuous fixed points near binary corners" "\n"
+            r"$\tilde{s}^*$ found via $s \leftarrow \tanh(-Ws/u_0)$ (fixed-point iteration)"
         ),
     )
     ax_eq.legend(fontsize=8.5, loc="lower right")
@@ -742,11 +783,12 @@ def make_spectrum_figure(ctrl, eq_data, W, args):
         ann_orig.set_position((1.6, ev_orig[0] + margin))
         ann_orig.set_text(rf"$\lambda_{{min}}={ev_orig[0]:.3f}$")
 
-        status = "Stable" if ev_orig[0] > 0 else "Unstable"
+        status = "STABLE — stagnates ✗" if ev_orig[0] > 0 else "UNSTABLE — binarises ✓"
         orig_text.set_text(
             rf"Origin $s=0$ at $u_0 = {u0:.4f}$" "\n"
-            rf"$\lambda_{{min}} = {ev_orig[0]:.4f}$" "\n"
-            rf"Status: {status}"
+            rf"$\lambda_{{\min}}(H) = {ev_orig[0]:.4f}$" "\n"
+            rf"Status: {status}" "\n"
+            rf"$u_{{0,\mathrm{{bin}}}} = {eq_data['u0_bin']:.4f}$"
         )
 
         # equilibria
@@ -756,9 +798,13 @@ def make_spectrum_figure(ctrl, eq_data, W, args):
                 [1.0 if b == 1 else -1.0 for b in eq["bits"]],
                 dtype=float,
             )
-            # relax towards continuous fixed point near this corner
-            for _ in range(5):
-                s = np.tanh((W @ s) / u0)
+            # Relax towards the continuous fixed point near this binary corner.
+            # Fixed-point condition from du/dt = 0:
+            #   u* = -W s*   ->   s* = tanh(u*/u0) = tanh(-W s*/u0)
+            # The original code had +W@s/u0 (wrong sign), which converges to
+            # fixed points of the wrong map and can flip the corner entirely.
+            for _ in range(15):
+                s = np.tanh(-(W @ s) / u0)
             ev_H = np.sort(np.linalg.eigvalsh(hessian_at_s(W, u0, s)))
             e_lines[k_r].set_ydata(ev_H)
             e_annots[k_r].xy = (1, ev_H[0])
