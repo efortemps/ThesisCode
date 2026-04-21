@@ -94,7 +94,7 @@ eq_thresholds = list(thresholds_dict.values())
 sorted_idx   = np.argsort(eq_thresholds)
 
 # At most 20 bars to avoid overcrowding — if more, we keep the ones with lowest thresholds (most likely to become stable)
-MAX_BARS     = min(32, len(eq_labels))
+MAX_BARS     = min(2**(10), len(eq_labels))
 ###
 s_labels     = [eq_labels[i]     for i in sorted_idx][:MAX_BARS]
 s_thresholds = [eq_thresholds[i] for i in sorted_idx][:MAX_BARS]

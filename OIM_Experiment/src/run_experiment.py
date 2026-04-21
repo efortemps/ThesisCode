@@ -755,13 +755,13 @@ def parse_args(argv=None):
                         help="Global random seed")
 
     sweep = parser.add_argument_group("mu sweep  [all experiments]")
-    sweep.add_argument("--mu-init",   type=float, default=1.6,
+    sweep.add_argument("--mu_init",   type=float, default=1.6,
                        help="Initial mu for sliders")
-    sweep.add_argument("--mu-min",    type=float, default=0.1,
+    sweep.add_argument("--mu_min",    type=float, default=0.1,
                        help="Lower bound of mu sweep")
-    sweep.add_argument("--mu-max",    type=float, default=3.0,
+    sweep.add_argument("--mu_max",    type=float, default=3.0,
                        help="Upper bound of mu sweep")
-    sweep.add_argument("--mu-steps",  type=int,   default=30,
+    sweep.add_argument("--n_mu",  type=int,   default=30,
                        help="Number of mu steps (Exp A scatter + Exp B slider)")
 
     expB = parser.add_argument_group("Experiment B  [interactive histogram]")
@@ -811,7 +811,7 @@ def main(argv=None):
         np.random.seed(args.seed)
         print(f"  Random seed: {args.seed}")
 
-    mu_values = np.linspace(args.mu_min, args.mu_max, args.mu_steps)
+    mu_values = np.linspace(args.mu_min, args.mu_max, args.n_mu)
 
     if run_A:
         print("\n" + "=" * 60 + "\nEXPERIMENT A\n" + "=" * 60)
@@ -820,7 +820,7 @@ def main(argv=None):
     if run_B:
         print("\n" + "=" * 60 + "\nEXPERIMENT B\n" + "=" * 60)
         experiment_B(
-            W, args.mu_min, args.mu_max, args.mu_steps,
+            W, args.mu_min, args.mu_max, args.n_mu,
             args.trials, (0.0, args.t_end), args.n_points,
         )
 

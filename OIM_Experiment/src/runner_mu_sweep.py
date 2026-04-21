@@ -14,7 +14,7 @@ def get_args():
         description="OIM mu-sweep experiment: iterate over mu values and study binarization."
     )
     # ── Graph source ────────────────────────────────────────────────
-    parser.add_argument("--data", type=str, default=None,
+    parser.add_argument("--graph", type=str, default=None,
                         help="Path to graph edge-list file (.txt).")
     parser.add_argument("--random", type=int, default=None,
                         help="Generate a random G(n,p) graph with this many nodes.")
@@ -73,16 +73,16 @@ def main():
     print("=" * 60)
 
     # ── Load / generate graph ────────────────────────────────────────
-    if args.data:
-        print(f"\nLoading graph from '{args.data}'...")
-        W = read_graph(args.data)
-        dataset_name = Path(args.data).stem
+    if args.graph:
+        print(f"\nLoading graph from '{args.graph}'...")
+        W = read_graph(args.graph)
+        dataset_name = Path(args.graph).stem
     elif args.random:
         print(f"\nGenerating random G({args.random}, p={args.prob}) graph...")
         W = random_graph(args.random, edge_prob=args.prob, seed=args.seed)
         dataset_name = f"random_{args.random}nodes_p{args.prob}"
     else:
-        raise ValueError("Provide --data <file.txt> or --random <n_nodes>.")
+        raise ValueError("Provide --graph <file.txt> or --random <n_nodes>.")
 
     n = len(W)
     n_edges = int(np.sum(W > 0) / 2)

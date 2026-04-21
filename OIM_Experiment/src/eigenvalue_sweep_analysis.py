@@ -393,16 +393,17 @@ def make_figure2(args, n, edges, eq_data, sweep_data):
         if mu_vals[0] <= mu_star <= mu_vals[-1]:
             ax_bif.scatter([mu_star], [0.0], color=c, s=55, zorder=7,
                            edgecolors=BLACK, linewidths=0.7)
-            ax_bif.annotate(
-                f"$\\mu^*={mu_star:.2f}$\n"
-                f"$\\bar{{H}}={H_mean:.1f}$\n"
-                f"cut$={cut_mean:.1f}$  $\\times{cnt}$",
-                xy=(mu_star, 0.0),
-                xytext=(mu_star + (mu_vals[-1] - mu_vals[0]) * 0.012,
-                        ann_y_vals[idx]),
-                fontsize=7, color=c, zorder=8,
-                arrowprops=dict(arrowstyle="->", color=c, lw=0.65,
-                                shrinkA=2, shrinkB=2))
+            if idx == 0 or idx == 1 or idx % 5 == 0:
+                ax_bif.annotate(
+                    f"$\\mu^*={mu_star:.2f}$\n"
+                    f"$\\bar{{H}}={H_mean:.1f}$\n"
+                    f"cut$={cut_mean:.1f}$  $\\times{cnt}$",
+                    xy=(mu_star, 0.0),
+                    xytext=(mu_star + (mu_vals[-1] - mu_vals[0]) * 0.012,
+                            ann_y_vals[idx]),
+                    fontsize=7, color=c, zorder=8,
+                    arrowprops=dict(arrowstyle="->", color=c, lw=0.65,
+                                    shrinkA=2, shrinkB=2))
 
     sm_bif = plt.cm.ScalarMappable(cmap=cmap_bif, norm=norm_bif)
     sm_bif.set_array([])
