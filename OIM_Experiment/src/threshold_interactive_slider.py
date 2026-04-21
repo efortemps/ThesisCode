@@ -5,19 +5,21 @@ threshold_interactive_slider.py
 Interactive eigenvalue explorer for threshold graphs parameterised by N.
 
 All computations are pre-computed for every N in [n_min, n_max] before the
-window opens. Moving the slider to N=k instantly shows the full eigenvalue /
-bifurcation analysis for a threshold graph on k nodes.
+windows open. Three separate interactive figures are opened simultaneously;
+moving the slider on ANY one of them instantly updates all three.
 
-Six panels (3 rows × 3 columns, row-1 wide panel spans all 3 cols)
-────────────────────────────────────────────────────────────────────
-[0,0] Graph topology (NetworkX spring layout)
-[0,1] Adjacency matrix heatmap
-[0,2] Properties text + construction table
-[1,0:3] Jacobian eigenvalue paths λ_k(A) = λ_k(D) − μ vs μ  (full width)
-[2,0] D-matrix eigenvalue spectrum — 3 representative equilibria
-[2,1] λ_max(D) bar chart — all 2^N equilibria, sorted, coloured by cut
-[2,2] Bifurcation diagram λ_max(D) − μ vs μ
-       right axis: number of stable equilibria vs μ
+Figure 1 — Graph topology
+    [left]  Threshold graph (NetworkX spring layout)
+    [right] Adjacency matrix heatmap
+
+Figure 2 — Jacobian eigenvalue paths  (single wide plot)
+    λ_k(A) = λ_k(D) − μ vs μ for 3 representative equilibria
+
+Figure 3 — Eigenvalue analysis
+    [left]   D-matrix eigenvalue spectrum — 3 representative equilibria
+    [centre] λ_max(D) bar chart — all 2^N equilibria, sorted, coloured by cut
+    [right]  Bifurcation diagram λ_max(D) − μ vs μ
+             right axis: number of stable equilibria vs μ
 
 Mathematical background (Cheng et al., Chaos 34, 073103, 2024)
 ────────────────────────────────────────────────────────────────
@@ -29,12 +31,12 @@ Usage
 ─────
 python threshold_interactive_slider.py [options]
 
---n_min INT   smallest N (default: 3)
---n_max INT   largest N (default: 10)
---n_mu  INT   μ-grid points per N (default: 300)
---seed  INT   RNG seed for random threshold sequences (default: 42)
+--n_min INT     smallest N (default: 3)
+--n_max INT     largest N (default: 10)
+--n_mu  INT     μ-grid points per N (default: 300)
+--seed  INT     RNG seed for random threshold sequences (default: 42)
 --sequence STR  comma-separated explicit sequences, one per N
-              e.g. "010,0110,01010" (overrides random generation)
+                e.g. "010,0110,01010" (overrides random generation)
 ──────────────────────────────────────────────────────────────────────────────
 """
 
@@ -62,34 +64,34 @@ from OIM_Experiment.src.OIM_mu import OIMMaxCut
 
 # ── TikZ-like global style ────────────────────────────────────────────────────
 plt.rcParams.update({
-    "font.family":        "serif",
-    "font.size":          10,
-    "axes.edgecolor":     "black",
-    "axes.linewidth":     0.8,
-    "xtick.color":        "black",
-    "ytick.color":        "black",
-    "text.color":         "black",
-    "figure.facecolor":   "white",
-    "axes.facecolor":     "white",
-    "legend.framealpha":  0.92,
-    "legend.edgecolor":   "#b0b0b0",
-    "legend.facecolor":   "white",
-    "legend.labelcolor":  "black",
+    "font.family":       "serif",
+    "font.size":         10,
+    "axes.edgecolor":    "black",
+    "axes.linewidth":    0.8,
+    "xtick.color":       "black",
+    "ytick.color":       "black",
+    "text.color":        "black",
+    "figure.facecolor":  "white",
+    "axes.facecolor":    "white",
+    "legend.framealpha": 0.92,
+    "legend.edgecolor":  "#b0b0b0",
+    "legend.facecolor":  "white",
+    "legend.labelcolor": "black",
 })
 
-WHITE    = "#ffffff"
-BLACK    = "#000000"
-GRAY     = "#b0b0b0"
-LIGHT    = "#e6e6e6"
+WHITE     = "#ffffff"
+BLACK     = "#000000"
+GRAY      = "#b0b0b0"
+LIGHT     = "#e6e6e6"
 C_STABLE   = "#4C72B0"
 C_UNSTABLE = "#DD8452"
-C_BPART  = "#4C72B0"
-C_FERRO  = "#DD8452"
-C_MIXED  = "#55A868"
+C_BPART   = "#4C72B0"
+C_FERRO   = "#DD8452"
+C_MIXED   = "#55A868"
 C_MU_LINE = "#ffb74d"
-C_ISO    = "#5588cc"
-C_DOM    = "#cc4444"
-C_MUBIN  = "#c44e52"
+C_ISO     = "#5588cc"
+C_DOM     = "#cc4444"
+C_MUBIN   = "#c44e52"
 
 
 def _ax_style(ax, title="", xlabel="", ylabel="", titlesize=9):
@@ -280,7 +282,7 @@ def precompute_all(n_min, n_max, n_mu, seed, explicit_sequences=None):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Panel draw functions
+# Panel draw functions  (unchanged)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _draw_graph(ax, W, seq, info):
@@ -345,65 +347,6 @@ def _draw_heatmap(ax, W, seq, fig):
                         fontsize=6, color=WHITE)
     ax.set_title("Adjacency matrix $W$", color=BLACK,
                  fontsize=8.5, fontweight="bold", pad=4)
-
-
-def _draw_props(ax, info, eq_data):
-    ax.cla()
-    ax.axis("off")
-    ax.set_facecolor(WHITE)
-    seq  = info["seq"]
-    deg  = info["degrees"]
-    mu_b = eq_data["mu_bin"]
-    bc   = eq_data["best_cut"]
-    wt   = eq_data["w_total"]
-    ns   = eq_data["n_stable"]
-    tot  = eq_data["total"]
-    mu_r = eq_data["mu"]
-
-    col_labels = ["v", "type", "s[i]", "deg", "+edges"]
-    table_data = []
-    for i in range(info["N"]):
-        vtype = "dom" if seq[i] == '1' else "iso"
-        new_e = i if seq[i] == '1' else 0
-        table_data.append([f"v{i}", vtype, seq[i],
-                           str(int(deg[i])), str(new_e)])
-
-    tbl = ax.table(
-        cellText=table_data, colLabels=col_labels,
-        bbox=[0.0, 0.45, 1.0, 0.52], cellLoc="center")
-    tbl.auto_set_font_size(False)
-    tbl.set_fontsize(8)
-    for j in range(len(col_labels)):
-        tbl[0, j].set_facecolor(LIGHT)
-        tbl[0, j].set_text_props(fontweight="bold", color=BLACK)
-    for i, row in enumerate(table_data, start=1):
-        c = (C_DOM + "44") if row[1] == "dom" else (C_ISO + "44")
-        for j in range(len(col_labels)):
-            tbl[i, j].set_facecolor(c)
-            tbl[i, j].set_edgecolor(GRAY)
-            tbl[i, j].set_linewidth(0.4)
-
-    props = (
-        f"$N={info['N']}$ vertices\n"
-        f"$|E|={info['n_edges']}$ edges\n"
-        f"Dom: {info['n_dom']}  Iso: {info['n_iso']}\n"
-        f"Density: {info['density']:.3f}\n"
-        f"Max deg: {int(deg.max())}  Min: {int(deg.min())}\n"
-        f"Deg seq: {sorted(deg.tolist(), reverse=True)}\n\n"
-        f"$2^N = {tot}$ equilibria\n"
-        f"$\\mu_{{\\rm bin}} = {mu_b:.4f}$ (Remark 7)\n"
-        f"$\\mu_{{\\rm ref}} = {mu_r:.4f}$\n"
-        f"Stable at $\\mu_{{\\rm ref}}$: {ns}/{tot}\n"
-        f"Best cut = {bc:.1f},  $W_{{\\rm tot}} = {wt:.1f}$"
-    )
-
-    ax.text(0.5, 0.42, props, transform=ax.transAxes,
-            ha="center", va="top", fontsize=8, color=BLACK,
-            bbox=dict(boxstyle="round,pad=0.4", facecolor=LIGHT,
-                      edgecolor=GRAY, alpha=0.95),
-            linespacing=1.55)
-    ax.set_title("Construction table + key properties",
-                 color=BLACK, fontsize=8.5, fontweight="bold", pad=4)
 
 
 def _draw_jac_paths(ax, eq_data, sweep_data, reps, n):
@@ -553,204 +496,174 @@ def _draw_lmax_bar(ax, eq_data):
               titlesize=8.5)
     ax.legend(fontsize=7.5, loc="upper left")
 
-
-def _draw_bifurcation(ax, eq_data, sweep_data):
-    """Bifurcation diagram + n_stable(μ) on right axis."""
-    ax.cla()
-    ax.set_facecolor(WHITE)
-
-    rows    = eq_data["rows"]
-    mu_vals = sweep_data["mu_vals"]
-    n_eq    = eq_data["total"]
-    mu_bin  = eq_data["mu_bin"]
-
-    lmax_D  = np.array([r["lmax_D"] for r in rows])
-    cut_arr = np.array([r["cut"]    for r in rows])
-    best_cut = eq_data["best_cut"]
-    unique_lmax, inverse, counts_lmax = np.unique(
-        np.round(lmax_D, 5), return_inverse=True, return_counts=True)
-    avg_cut = np.array([cut_arr[inverse == k].mean()
-                        for k in range(len(unique_lmax))])
-
-    bif_lo = unique_lmax.min() - mu_vals.max() - 0.3
-    bif_hi = unique_lmax.max() + 0.4
-
-    ax.fill_between(mu_vals,
-                    np.minimum(sweep_data["lmax_A_min_mu"], 0), 0,
-                    color=C_STABLE, alpha=0.12, zorder=0)
-    ax.fill_between(mu_vals, 0,
-                    np.maximum(sweep_data["lmax_A_max_mu"], 0),
-                    color=C_UNSTABLE, alpha=0.10, zorder=0)
-    ax.axhline(0,      color=BLACK,  linewidth=1.2, zorder=5)
-    ax.axvline(mu_bin, color=C_MUBIN, linewidth=1.5,
-               linestyle=":", zorder=7,
-               label=f"$\\mu_{{\\rm bin}}={mu_bin:.3f}$")
-
-    cmap_bif = plt.get_cmap("RdYlGn")
-    norm_bif = mcolors.Normalize(vmin=0, vmax=max(best_cut, 1e-9))
-    mu_range = mu_vals[-1] - mu_vals[0]
-    ann_ys   = np.linspace(bif_hi * 0.92, bif_hi * 0.08, len(unique_lmax))
-
-    for idx, (lm, cnt, cut_mean) in enumerate(
-            zip(unique_lmax, counts_lmax, avg_cut)):
-        c  = cmap_bif(norm_bif(cut_mean))
-        lw = 0.7 + 0.45 * np.log1p(cnt / 2.0)
-        ax.plot(mu_vals, lm - mu_vals, color=c, linewidth=lw, alpha=0.88)
-        if mu_vals[0] <= lm <= mu_vals[-1]:
-            ax.scatter([lm], [0.0], color=c, s=28, zorder=7,
-                       edgecolors=BLACK, linewidths=0.5)
-            ax.annotate(
-                f"$\\mu^*={lm:.2f}$ ×{cnt}",
-                xy=(lm, 0.0),
-                xytext=(lm + mu_range * 0.025, ann_ys[idx]),
-                fontsize=5.8, color=c, zorder=8,
-                arrowprops=dict(arrowstyle="->", color=c, lw=0.55,
-                                shrinkA=2, shrinkB=2))
-
-    ax.set_xlim(mu_vals[0], mu_vals[-1])
-    ax.set_ylim(bif_lo, bif_hi)
-
-    # right axis: n_stable(μ)
-    ax2 = ax.twinx()
-    ax2.plot(mu_vals, sweep_data["n_stable_mu"],
-             color=C_STABLE, linewidth=1.8, linestyle="-", alpha=0.85,
-             zorder=4, label="# stable eq.")
-    ax2.set_ylabel("# stable equilibria", color=C_STABLE, fontsize=8)
-    ax2.tick_params(axis="y", colors=C_STABLE, labelsize=7)
-    ax2.set_ylim(-0.5, n_eq + 0.5)
-    for sp in ax2.spines.values():
-        sp.set_edgecolor(BLACK); sp.set_linewidth(0.8)
-    ax2.legend(fontsize=7, loc="center right")
-
-    _ax_style(ax,
-              title=("Bifurcation diagram "
-                     "$\\lambda_{\\max}(D)-\\mu$ vs $\\mu$\n"
-                     "Dots = stability transitions | "
-                     "right axis = # stable eq."),
-              xlabel="$\\mu$",
-              ylabel="$\\lambda_{\\max}(A)=\\lambda_{\\max}(D)-\\mu$",
-              titlesize=8.5)
-    ax.legend(fontsize=7.5, loc="upper left")
-    ax.text(0.97, 0.06, "← stable",
-            transform=ax.transAxes, ha="right", fontsize=7, color=C_STABLE)
-    ax.text(0.97, 0.94, "← unstable",
-            transform=ax.transAxes, ha="right", va="top",
-            fontsize=7, color=C_UNSTABLE)
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
-# Master redraw — calls all six panels
+# Per-figure suptitle helper
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def redraw_all(n, data, axes, fig, n_min, n_max):
-    """Redraw all six panels for the given N."""
-    ax_graph, ax_heat, ax_props, ax_jac, ax_spec, ax_bar, ax_bif = axes
-
-    W       = data["W"]
-    seq     = data["seq"]
-    info    = data["info"]
-    eq_data = data["eq_data"]
-    sw_data = data["sweep_data"]
-    reps    = data["reps"]
-
-    _draw_graph(ax_graph, W, seq, info)
-    _draw_heatmap(ax_heat, W, seq, fig)
-    _draw_props(ax_props, info, eq_data)
-    _draw_jac_paths(ax_jac, eq_data, sw_data, reps, n)
-    _draw_d_spectrum(ax_spec, eq_data, reps, n)
-    _draw_lmax_bar(ax_bar, eq_data)
-    _draw_bifurcation(ax_bif, eq_data, sw_data)
-
+def _suptitle(fig, n, seq, eq_data, n_min, n_max, subtitle=""):
+    suffix = f"  —  {subtitle}" if subtitle else ""
     fig.suptitle(
         f"OIM Threshold-Graph Eigenvalue Explorer | "
-        f"$N = {n}$ (slider: {n_min} → {n_max}) | "
+        f"$N = {n}$ (slider: {n_min}→{n_max}) | "
         f"seq: $\\tt{{{seq}}}$ | "
-        f"$2^N = {2**n}$ equilibria | "
+        f"$2^N = {2**n}$ eq. | "
         f"$\\mu_{{\\rm bin}} = {eq_data['mu_bin']:.4f}$ | "
-        f"best cut $= {eq_data['best_cut']:.1f}$",
-        color=BLACK, fontsize=11, fontweight="bold", y=1.002)
-
-    fig.canvas.draw_idle()
+        f"best cut $= {eq_data['best_cut']:.1f}${suffix}",
+        color=BLACK, fontsize=10, fontweight="bold", y=1.002)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Interactive figure
+# Per-figure redraw functions
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def make_interactive(all_data, n_min, n_max):
-    n_arr = np.arange(n_min, n_max + 1)
+def _redraw_fig1(n, data, ax_graph, ax_heat, fig1, n_min, n_max):
+    _draw_graph(ax_graph, data["W"], data["seq"], data["info"])
+    _draw_heatmap(ax_heat, data["W"], data["seq"], fig1)
+    _suptitle(fig1, n, data["seq"], data["eq_data"], n_min, n_max,
+              "Graph topology")
+    fig1.canvas.draw_idle()
 
-    def _snap_n(val):
-        """Convert slider values to a valid integer N."""
-        return int(np.clip(int(round(float(val))), n_min, n_max))
 
-    fig = plt.figure(figsize=(22, 15), facecolor=WHITE)
+def _redraw_fig2(n, data, ax_jac, fig2, n_min, n_max):
+    _draw_jac_paths(ax_jac, data["eq_data"], data["sweep_data"],
+                    data["reps"], n)
+    _suptitle(fig2, n, data["seq"], data["eq_data"], n_min, n_max,
+              "Jacobian eigenvalue paths")
+    fig2.canvas.draw_idle()
 
-    # ── GridSpec: 3 rows × 3 cols ─────────────────────────────────────────
-    gs = gridspec.GridSpec(
-        3, 3, figure=fig,
-        hspace=0.52, wspace=0.38,
-        left=0.05, right=0.97, top=0.95, bottom=0.10)
 
-    ax_graph = fig.add_subplot(gs[0, 0])
-    ax_heat  = fig.add_subplot(gs[0, 1])
-    ax_props = fig.add_subplot(gs[0, 2])
-    ax_jac   = fig.add_subplot(gs[1, :])   # full-width row 1 (all 3 cols)
-    ax_spec  = fig.add_subplot(gs[2, 0])
-    ax_bar   = fig.add_subplot(gs[2, 1])
-    ax_bif   = fig.add_subplot(gs[2, 2])
+def _redraw_fig3(n, data, ax_spec, ax_bar, fig3, n_min, n_max):
+    _draw_d_spectrum(ax_spec, data["eq_data"], data["reps"], n)
+    _draw_lmax_bar(ax_bar, data["eq_data"])
+    _suptitle(fig3, n, data["seq"], data["eq_data"], n_min, n_max,
+              "Eigenvalue analysis")
+    fig3.canvas.draw_idle()
 
-    axes = (ax_graph, ax_heat, ax_props,
-            ax_jac,
-            ax_spec, ax_bar, ax_bif)
 
-    # ── Slider ────────────────────────────────────────────────────────────
-    ax_slider = fig.add_axes((0.15, 0.025, 0.70, 0.025))
-    slider = Slider(
-        ax_slider, "$N$",
-        valmin=n_min, valmax=n_max,
-        valinit=n_min,
-        valstep=1,              # one step per integer N
-        color=C_STABLE, track_color=LIGHT)
-    ax_slider.set_facecolor(WHITE)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Slider / button factory  (reused for all three figures)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _add_slider_and_buttons(fig, n_min, n_max):
+    """
+    Add a slider + ◀/▶ buttons to *fig*.
+    Returns (slider, btn_left, btn_right).
+    """
+    n_arr     = np.arange(n_min, n_max + 1)
+    ax_sl     = fig.add_axes((0.15, 0.025, 0.70, 0.025))
+    slider    = Slider(ax_sl, "$N$",
+                       valmin=n_min, valmax=n_max, valinit=n_min,
+                       valstep=1, color=C_STABLE, track_color=LIGHT)
+    ax_sl.set_facecolor(WHITE)
     slider.label.set_color(BLACK)
     slider.valtext.set_color(BLACK)
     slider.valtext.set_fontsize(11)
+    ax_sl.set_xticks(n_arr)
+    ax_sl.set_xticklabels([str(n) for n in n_arr], fontsize=9, color=BLACK)
 
-    # ◀ / ▶ step buttons
-    ax_btn_l = fig.add_axes((0.08, 0.020, 0.04, 0.035))
-    ax_btn_r = fig.add_axes((0.88, 0.020, 0.04, 0.035))
-    btn_l = Button(ax_btn_l, "◀", color=LIGHT, hovercolor=LIGHT)
-    btn_r = Button(ax_btn_r, "▶", color=LIGHT, hovercolor=LIGHT)
+    ax_bl = fig.add_axes((0.08, 0.020, 0.04, 0.035))
+    ax_br = fig.add_axes((0.88, 0.020, 0.04, 0.035))
+    btn_l = Button(ax_bl, "◀", color=LIGHT, hovercolor=LIGHT)
+    btn_r = Button(ax_br, "▶", color=LIGHT, hovercolor=LIGHT)
     for b in (btn_l, btn_r):
         b.label.set_color(BLACK)
         b.label.set_fontsize(12)
 
-    # Tick labels on the slider axis
-    ax_slider.set_xticks(n_arr)
-    ax_slider.set_xticklabels([str(n) for n in n_arr],
-                               fontsize=9, color=BLACK)
+    return slider, btn_l, btn_r
 
-    # ── Callbacks ─────────────────────────────────────────────────────────
-    def update(val):
-        n = _snap_n(val)
-        redraw_all(n, all_data[n], axes, fig, n_min, n_max)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Interactive figures  (replaces the old make_interactive)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def make_interactive(all_data, n_min, n_max):
+    """
+    Open three separate figure windows, each with its own slider.
+    Moving the slider on any window updates all three simultaneously.
+    """
+
+    def _snap(val):
+        return int(np.clip(int(round(float(val))), n_min, n_max))
+
+    # ── Figure 1: graph topology + adjacency matrix ───────────────────────
+    fig1 = plt.figure("Fig 1 — Graph topology", figsize=(14, 7),
+                      facecolor=WHITE)
+    gs1  = gridspec.GridSpec(1, 2, figure=fig1,
+                             hspace=0.30, wspace=0.35,
+                             left=0.05, right=0.97,
+                             top=0.90, bottom=0.10)
+    ax_graph = fig1.add_subplot(gs1[0, 0])
+    ax_heat  = fig1.add_subplot(gs1[0, 1])
+    sl1, bl1, br1 = _add_slider_and_buttons(fig1, n_min, n_max)
+
+    # ── Figure 2: Jacobian eigenvalue paths (single wide plot) ────────────
+    fig2 = plt.figure("Fig 2 — Jacobian eigenvalue paths", figsize=(14, 7),
+                      facecolor=WHITE)
+    gs2  = gridspec.GridSpec(1, 1, figure=fig2,
+                             left=0.07, right=0.97,
+                             top=0.88, bottom=0.12)
+    ax_jac = fig2.add_subplot(gs2[0, 0])
+    sl2, bl2, br2 = _add_slider_and_buttons(fig2, n_min, n_max)
+
+    # ── Figure 3: D spectrum + bar + bifurcation ──────────────────────────
+    fig3 = plt.figure("Fig 3 — Eigenvalue analysis", figsize=(20, 7),
+                      facecolor=WHITE)
+    gs3  = gridspec.GridSpec(1, 2, figure=fig3,
+                             hspace=0.30, wspace=0.38,
+                             left=0.05, right=0.97,
+                             top=0.88, bottom=0.12)
+    ax_spec = fig3.add_subplot(gs3[0, 0])
+    ax_bar  = fig3.add_subplot(gs3[0, 1])
+    sl3, bl3, br3 = _add_slider_and_buttons(fig3, n_min, n_max)
+
+    all_sliders = [sl1, sl2, sl3]
+
+    # ── Synchronised update ───────────────────────────────────────────────
+    _lock = [False]   # re-entrancy guard
+
+    def update_all(val):
+        if _lock[0]:
+            return
+        _lock[0] = True
+        try:
+            n = _snap(val)
+            data = all_data[n]
+            # Silently sync every slider to the new N
+            for sl in all_sliders:
+                if _snap(sl.val) != n:
+                    sl.eventson = False
+                    sl.set_val(n)
+                    sl.eventson = True
+            # Redraw all three figures
+            _redraw_fig1(n, data, ax_graph, ax_heat, fig1, n_min, n_max)
+            _redraw_fig2(n, data, ax_jac,   fig2,    n_min, n_max)
+            _redraw_fig3(n, data, ax_spec, ax_bar, fig3, n_min, n_max)
+        finally:
+            _lock[0] = False
 
     def step_left(_):
-        slider.set_val(max(n_min, _snap_n(slider.val) - 1))
+        update_all(_snap(sl1.val) - 1)
 
     def step_right(_):
-        slider.set_val(min(n_max, _snap_n(slider.val) + 1))
+        update_all(_snap(sl1.val) + 1)
 
-    slider.on_changed(update)
-    btn_l.on_clicked(step_left)
-    btn_r.on_clicked(step_right)
+    # Connect callbacks
+    for sl in all_sliders:
+        sl.on_changed(update_all)
+    for bl in (bl1, bl2, bl3):
+        bl.on_clicked(step_left)
+    for br in (br1, br2, br3):
+        br.on_clicked(step_right)
 
     # Initial render
-    update(n_min)
-    # Prevent garbage collection of widgets
-    fig._widgets = [slider, btn_l, btn_r]
-    return fig
+    update_all(n_min)
+
+    # Keep widget references alive (prevent garbage collection)
+    fig1._widgets = [sl1, bl1, br1]
+    fig2._widgets = [sl2, bl2, br2]
+    fig3._widgets = [sl3, bl3, br3]
+
+    return fig1, fig2, fig3
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -760,16 +673,16 @@ def make_interactive(all_data, n_min, n_max):
 def main():
     parser = argparse.ArgumentParser(
         description="Interactive N-slider eigenvalue explorer "
-                    "for threshold graphs")
-    parser.add_argument("--n_min",     type=int, default=3,
+                    "for threshold graphs (3 separate figures)")
+    parser.add_argument("--n_min",    type=int, default=3,
                         help="Smallest N (default: 3)")
-    parser.add_argument("--n_max",     type=int, default=10,
+    parser.add_argument("--n_max",    type=int, default=10,
                         help="Largest N (default: 10)")
-    parser.add_argument("--n_mu",      type=int, default=300,
+    parser.add_argument("--n_mu",     type=int, default=300,
                         help="μ-grid points per N (default: 300)")
-    parser.add_argument("--seed",      type=int, default=42,
+    parser.add_argument("--seed",     type=int, default=42,
                         help="RNG seed for random sequences (default: 42)")
-    parser.add_argument("--sequence",  type=str, default=None,
+    parser.add_argument("--sequence", type=str, default=None,
                         help="Comma-separated explicit sequences, one per N. "
                              "E.g. '010,0110,01010' (length must match N)")
     args = parser.parse_args()
@@ -789,9 +702,9 @@ def main():
     all_data = precompute_all(args.n_min, args.n_max, args.n_mu,
                               args.seed, explicit_seqs)
 
-    print(" Launching interactive window …")
-    print(" Use the slider or ◀ / ▶ buttons to switch N.\n")
-    fig = make_interactive(all_data, args.n_min, args.n_max)
+    print(" Launching 3 interactive windows …")
+    print(" Moving the slider on ANY window updates all three.\n")
+    make_interactive(all_data, args.n_min, args.n_max)
     plt.show()
 
 

@@ -164,7 +164,6 @@ class OIMMaxCut:
         phi_star = np.asarray(phi_star, dtype=float)
         D        = self.build_D(phi_star)
         jacobian = D - self.mu * np.diag(np.cos(2.0 * phi_star))
-        print(f"[OIM] Jacobian A(phi*) =\n{jacobian}")
         return jacobian
 
     # ------------------------------------------------------------------
