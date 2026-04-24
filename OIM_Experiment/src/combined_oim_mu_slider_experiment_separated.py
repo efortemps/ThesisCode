@@ -575,10 +575,15 @@ def make_phase_figure(ctrl, results, eq_data, args):
     n_eq     = eq_data["total"]
     n_init   = args.n_init
 
-    fig = plt.figure(figsize=(22, 9.5), facecolor=WHITE)
-    ax_phase  = fig.add_axes((0.04, 0.13, 0.54, 0.78))
-    ax_table  = fig.add_axes((0.61, 0.13, 0.38, 0.78))
-    ax_slider = fig.add_axes((0.10, 0.035, 0.80, 0.030))
+    # Figure for Phase Dynamics
+    fig_phase = plt.figure(figsize=(11, 9.5), facecolor=WHITE)
+    ax_phase = fig_phase.add_axes((0.10, 0.13, 0.80, 0.78))
+    ax_slider_phase = fig_phase.add_axes((0.10, 0.035, 0.80, 0.030))
+
+    # Figure for Convergence Table
+    fig_table = plt.figure(figsize=(11, 9.5), facecolor=WHITE)
+    ax_table = fig_table.add_axes((0.05, 0.13, 0.90, 0.78))
+    ax_slider_table = fig_table.add_axes((0.10, 0.035, 0.80, 0.030))
 
     for ax in (ax_phase, ax_table):
         ax.set_facecolor(WHITE)
@@ -586,22 +591,42 @@ def make_phase_figure(ctrl, results, eq_data, args):
             sp.set_edgecolor(BLACK)
             sp.set_linewidth(0.8)
 
-    slider = Slider(
-        ax_slider, "$\\mu$",
+    # Slider for Phase Figure
+    slider_phase = Slider(
+        ax_slider_phase, "$\\mu$",
         mu_arr[0], mu_arr[-1],
         valinit=float(mu_arr[ctrl.index]),
         valstep=mu_arr,
         color=C_STABLE,
         track_color=LIGHT
     )
-    ax_slider.set_facecolor(WHITE)
-    slider.label.set_color(BLACK)
-    slider.valtext.set_color(BLACK)
-    ax_slider.axvline(mu_bin, color=C_MUBIN, linewidth=2.5, zorder=5)
+    ax_slider_phase.set_facecolor(WHITE)
+    slider_phase.label.set_color(BLACK)
+    slider_phase.valtext.set_color(BLACK)
+    ax_slider_phase.axvline(mu_bin, color=C_MUBIN, linewidth=2.5, zorder=5)
     rel = float(np.clip((mu_bin - mu_arr[0]) / (mu_arr[-1] - mu_arr[0] + 1e-12), 0, 1))
-    ax_slider.text(
+    ax_slider_phase.text(
         rel, 1.05, f"$\\mu_{{\\rm bin}}={mu_bin:.3f}$",
-        transform=ax_slider.transAxes,
+        transform=ax_slider_phase.transAxes,
+        ha="center", va="bottom", fontsize=8.5, color=C_MUBIN
+    )
+
+    # Slider for Table Figure
+    slider_table = Slider(
+        ax_slider_table, "$\\mu$",
+        mu_arr[0], mu_arr[-1],
+        valinit=float(mu_arr[ctrl.index]),
+        valstep=mu_arr,
+        color=C_STABLE,
+        track_color=LIGHT
+    )
+    ax_slider_table.set_facecolor(WHITE)
+    slider_table.label.set_color(BLACK)
+    slider_table.valtext.set_color(BLACK)
+    ax_slider_table.axvline(mu_bin, color=C_MUBIN, linewidth=2.5, zorder=5)
+    ax_slider_table.text(
+        rel, 1.05, f"$\\mu_{{\\rm bin}}={mu_bin:.3f}$",
+        transform=ax_slider_table.transAxes,
         ha="center", va="bottom", fontsize=8.5, color=C_MUBIN
     )
 
@@ -610,12 +635,27 @@ def make_phase_figure(ctrl, results, eq_data, args):
         mu = rec["mu"]
         _draw_phase(ax_phase, rec["sols"], rec["conv"], mu, mu_bin, w_total, best_cut, n, n_init)
         _draw_styled_table(ax_table, rec["conv"], best_cut, n_init, mu, mu_bin)
-        fig.canvas.draw_idle()
 
-    ctrl.register_slider(slider)
+        title_str = (
+            f"OIM μ-slider | {args.graph} | $N={n}$, $2^N={n_eq}$ equilibria | "
+            f"$\\mu_{{\\rm bin}}={mu_bin:.4f}$ | "
+            f"best cut$={best_cut:.1f}$, $W_{{\\rm tot}}={w_total:.1f}$ | "
+            f"step {idx+1}/{len(results)}  ($\\mu={mu:.4f}$)"
+        )
+
+        fig_phase.suptitle(title_str, color=BLACK, fontsize=11, fontweight="bold", y=0.99)
+        fig_table.suptitle(title_str, color=BLACK, fontsize=11, fontweight="bold", y=0.99)
+
+        fig_phase.canvas.draw_idle()
+        fig_table.canvas.draw_idle()
+
+    ctrl.register_slider(slider_phase)
+    ctrl.register_slider(slider_table)
     ctrl.register_updater(update)
-    fig.slider = slider
-    return fig
+    fig_phase.slider = slider_phase
+    fig_table.slider = slider_table
+    return fig_phase, fig_table
+
 
 
 # ── Figure 2: Jacobian / D-matrix spectra ────────────────────────────────────
@@ -761,6 +801,15 @@ def make_spectrum_figure(ctrl, eq_data, args):
             f"Stable iff $\\lambda_{{max}}(A) < 0$\n"
             f"Stable equilibria: {n_stable} / {n_eq}"
         )
+
+        fig.suptitle(
+            f"OIM Eigenvalue Spectrum | {args.graph} | "
+            f"$N={n}$, $2^N={n_eq}$ equilibria | "
+            f"$\\mu_{{bin}}={mu_bin:.4f}$ | "
+            f"Best cut$={best_cut:.1f}$, $W_{{tot}}={w_total:.1f}$ | "
+            f"$\\mu={mu:.4f}$",
+            color=BLACK, fontsize=13, fontweight="bold", y=0.98
+        )
         fig.canvas.draw_idle()
 
     ctrl.register_slider(slider)
@@ -833,7 +882,7 @@ def main():
     )
 
     ctrl = SharedMuController(mu_list)
-    make_phase_figure(ctrl, results, eq_data, args)
+    fig_phase, fig_table = make_phase_figure(ctrl, results, eq_data, args)
     make_spectrum_figure(ctrl, eq_data, args)
     ctrl.trigger()
 
