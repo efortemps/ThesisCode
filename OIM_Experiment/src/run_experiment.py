@@ -384,13 +384,6 @@ def experiment_B(W: np.ndarray, mu_min: float, mu_max: float,
     ax_hist.set_ylabel(f"Count  (out of {n_trials} trials)",
                        fontsize=11, color=BLACK)
 
-    # Static reference lines
-    ax_hist.axvline(H_ground, color=ORANGE, linestyle="--", linewidth=1.8,
-                    label=f"Ground state H = {H_ground:.1f}", zorder=3)
-    ax_hist.axvline(mu_bin,   color=BLACK,  linestyle="-.", linewidth=1.5,
-                    label=fr"$\mu_{{\rm bin}}$ = {mu_bin:.4f}  (Remark 7)",
-                    zorder=3)
-
     # Live annotation text
     annot = ax_hist.text(
         0.98, 0.97, "", transform=ax_hist.transAxes,
@@ -423,24 +416,11 @@ def experiment_B(W: np.ndarray, mu_min: float, mu_max: float,
         annot.set_color(status_color)
 
         title_obj.set_text(
-            fr"Exp B — Ising H distribution   $\mu$ = {mu:.4f}   "
+            fr"Ising H distribution   $\mu$ = {mu:.4f}   "
             fr"$K_s$ = {Ks:.4f}   (N={N},  {n_trials} trials)"
-            "\n"
-            + (fr"$\mu > \mu_{{\rm bin}}$: system binarises"
-               if mu >= mu_bin
-               else fr"$\mu < \mu_{{\rm bin}}$: system does NOT binarise")
-        )
+            "\n")
 
     _refresh(init_idx)
-
-    ax_hist.legend(handles=[
-        mpatches.Patch(color=BLUE,   alpha=0.85, label="Ising H from trials"),
-        mlines.Line2D([0], [0], color=ORANGE, linestyle="--", lw=1.8,
-                      label=f"Ground state H = {H_ground:.1f}"),
-        mlines.Line2D([0], [0], color=BLACK,  linestyle="-.", lw=1.5,
-                      label=fr"$\mu_{{\rm bin}}$ = {mu_bin:.4f}"),
-    ], fontsize=9, facecolor=WHITE, edgecolor=GRAY, labelcolor=BLACK,
-       loc="upper left")
 
     # ── Slider ────────────────────────────────────────────────────────────
     slider = Slider(ax_sl, r"$\mu$", mu_min, mu_max,
@@ -456,11 +436,6 @@ def experiment_B(W: np.ndarray, mu_min: float, mu_max: float,
         fig.canvas.draw_idle()
 
     slider.on_changed(update)
-    fig.suptitle(
-        f"OIM Max-Cut — Ising H Explorer   |   N={N}   "
-        f"|   {n_trials} trials per mu step   |   Drag slider to sweep mu",
-        fontsize=11, fontweight="bold", color=BLACK,
-    )
     print("[Exp B] Drag the slider to explore. Close when done.")
     plt.show()
 

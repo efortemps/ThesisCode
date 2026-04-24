@@ -516,8 +516,7 @@ def _draw_phase(ax, sols, conv, mu, mu_bin, w_total, best_cut, n, n_init):
     ax.set_ylabel(r"phase $\theta_i(t)$ (rad)", color=BLACK, fontsize=11)
     above_below = "above" if mu > mu_bin else "below"
     ax.set_title(
-        f"Phase dynamics  $\\mu = {mu:.4f}$  "
-        f"({above_below} $\\mu_{{\\rm bin}} = {mu_bin:.4f}$) | "
+        f"Phase dynamics "
         f"{n_init} initial conditions",
         color=BLACK, fontsize=11, pad=6
     )

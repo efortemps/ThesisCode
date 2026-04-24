@@ -738,10 +738,9 @@ def make_figure4(args, n, edges, eq_data, sweep_data):
     ax_bif_H.text(0.01, 0.04, "← unstable", transform=ax_bif_H.transAxes,
                 ha="left", fontsize=10, color=C_UNSTABLE)
     _ax_style(ax_bif_H,
-              title=("Bifurcation diagram (Hessian H):  $\\lambda_{\\min}(H) = 2\\mu - 2\\lambda_{\\max}(D)$  vs  $\\mu$  |  "
-                     "line colour = cut quality  |  dots = stability transitions"),
+              title=("Minimum Eigenvalue Analysis of Hessian $H(\\theta)$"),
               xlabel="$\\mu$",
-              ylabel="$\\lambda_{\\min}(H)=2\\mu - 2\\lambda_{\\max}(D)$")
+              ylabel="$\\lambda_{\\min}(H(\\theta))$")
 
     fig.suptitle(
         f"OIM Hessian Bifurcation Analysis  |  {args.graph}  |  "
