@@ -11,13 +11,19 @@ Figure 1 — Phase dynamics  +  convergence table
   Right  | Per-trajectory convergence table (terminal state, type, H, cut,
            distance to every binary equilibrium, …) + summary table
 
-Figure 2 — Bifurcation analysis
+Figure 2 — Bifurcation analysis (Jacobian)
   Row 0  | λ_max(D) bar chart  — all 2^N equilibria, bars coloured by cut
   Row 1  | Bifurcation diagram — λ_max(D)−μ vs μ, annotated H & cut
 
-Figure 3 — Quality analysis
-  Left   | H vs cut scatter    — all 2^N equilibria, ODE hits overlaid
-  Right  | D(φ*) spectrum      — 3 representative equilibria
+Figure 3 — Quality analysis (Updated with Hessian)
+  Top Left    | A(φ*) Jacobian spectrum
+  Top Right   | D(φ*) Laplacian spectrum
+  Bottom Left | H(φ*) Hessian spectrum  (H = -2A)
+  Bottom Right| Empty/Placeholder
+
+Figure 4 — Hessian Bifurcation Diagram (NEW)
+  Row 0  | λ_max(D) bar chart  — all 2^N equilibria, bars coloured by cut
+  Row 1  | Bifurcation diagram — λ_min(H) = 2μ - 2λ_max(D) vs μ
 
 ──────────────────────────────────────────────────────────────────────────────
 ROOT-CAUSE NOTE  (explains the ±π/2 trap seen in Figure_1_trajectories.png)
@@ -43,7 +49,8 @@ FIX applied here:
 Mathematical background  (Cheng et al., Chaos 34, 073103, 2024)
 ────────────────────────────────────────────────────────────────
   A(φ*, μ) = D(φ*) − μ·I_N   →   λ_k(A) = λ_k(D) − μ   (slope −1 in μ)
-  Stability: μ > λ_max(D(φ*))
+  H(φ*, μ) = -2 * A(φ*, μ)   (Hessian is proportional to negative Jacobian)
+  Stability: μ > λ_max(D(φ*))   <=>   λ_max(A) < 0   <=>   λ_min(H) > 0
   μ_bin = min_{φ*∈{0,π}^N} λ_max(D(φ*))
   H(σ) = Σ_{i<j} W_ij σ_i σ_j = W_total − 2·cut
 ─────────────────────────────────────────────────────────────────────────────
@@ -116,6 +123,10 @@ def _jacobian(oim: OIMMaxCut, phi_star: np.ndarray) -> np.ndarray:
     D = oim.build_D(phi_star)
     return D - oim.mu * np.diag(np.cos(2.0 * phi_star))
 
+def _hessian(oim: OIMMaxCut, phi_star: np.ndarray) -> np.ndarray:
+    """Hessian is -2 * Jacobian for this system"""
+    return -2.0 * _jacobian(oim, phi_star)
+
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Equilibrium analysis
@@ -130,8 +141,12 @@ def analyse_equilibria(oim: OIMMaxCut) -> dict:
         D    = oim.build_D(phi)
         ev_D = np.sort(np.linalg.eigvalsh(D))
         lmax = float(ev_D[-1])
+
         A    = _jacobian(oim, phi)
         ev_A = np.sort(np.linalg.eigvalsh(A))
+
+        H_mat = _hessian(oim, phi)
+        ev_H  = np.sort(np.linalg.eigvalsh(H_mat))
 
         sigma        = np.sign(np.cos(phi))
         sigma[sigma == 0] = 1.0
@@ -140,9 +155,10 @@ def analyse_equilibria(oim: OIMMaxCut) -> dict:
 
         rows.append({
             "bits": bits, "phi": phi, "D": D,
-            "ev_D": ev_D, "ev_A": ev_A, "lmax_D": lmax,
-            "lmax_A": float(ev_A[-1]), "mu_thr": lmax,
-            "stable": mu > lmax, "H": H, "cut": cut,
+            "ev_D": ev_D, "ev_A": ev_A, "ev_H": ev_H,
+            "lmax_D": lmax, "lmax_A": float(ev_A[-1]), 
+            "lmin_H": float(ev_H[0]), # Min eigenvalue of Hessian determines stability
+            "mu_thr": lmax, "stable": mu > lmax, "H": H, "cut": cut,
         })
 
     mu_bin   = min(r["lmax_D"] for r in rows)
@@ -201,17 +217,9 @@ def pick_representatives(rows: list):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Convergence identification — classifies all 5 terminal-state types
+# Convergence identification
 # ═════════════════════════════════════════════════════════════════════════════
 def _atom(theta_i: float, tol: float = 0.05) -> str:
-    """
-    Classify a single terminal phase θ_i into one of four atom types.
-
-    'zero'  — |sin(θ)| < tol AND cos(θ) > 0   (θ ≈ 0 mod 2π)
-    'pi'    — |sin(θ)| < tol AND cos(θ) < 0   (θ ≈ π mod 2π)
-    'half'  — |sin(θ)| ≈ 1                     (θ ≈ ±π/2)
-    'other' — none of the above                (Type-III)
-    """
     s = np.sin(theta_i)
     c = np.cos(theta_i)
     if abs(s) < tol:
@@ -224,20 +232,6 @@ def _atom(theta_i: float, tol: float = 0.05) -> str:
 def identify_convergence(sol, W: np.ndarray,
                           binary_equilibria: list,
                           bin_tol: float = 0.05) -> dict:
-    """
-    Classify the terminal state of one ODE trajectory.
-
-    Returns dict with keys:
-      theta_end   — (N,) terminal phase vector
-      bits        — tuple  0/1 from hard binarisation (sign of cos)
-      H, cut      — Hamiltonian and cut at the binarised bits
-      residual    — max_i |sin(θ_i)|  (0 = perfect binary)
-      is_binary   — True iff state_type == 'M2-binary'
-      state_type  — 'M2-binary' | 'M1-half' | 'M1-mixed' |
-                    'Type-III'  | 'not-converged'
-      atom_types  — list of per-spin atom type strings
-      nearest_eq  — closest M2 equilibrium (by L2 dist in phase space)
-    """
     theta = sol.y[:, -1].copy()
     n     = len(theta)
 
@@ -297,7 +291,7 @@ def identify_convergence(sol, W: np.ndarray,
     )
 
 # ═════════════════════════════════════════════════════════════════════════════
-# FIGURE 2 — Bifurcation analysis  (unchanged)
+# FIGURE 2 — Bifurcation analysis (Jacobian)
 # ═════════════════════════════════════════════════════════════════════════════
 def make_figure2(args, n, edges, eq_data, sweep_data):
     rows       = eq_data["rows"]
@@ -360,7 +354,7 @@ def make_figure2(args, n, edges, eq_data, sweep_data):
               xlabel="Equilibrium index",
               ylabel="$\\lambda_{\\max}(D(\\phi^*))$")
 
-    # ── bifurcation diagram ───────────────────────────────────────────────────
+    # ── bifurcation diagram (Jacobian) ─────────────────────────────────────────
     norm_bif = mcolors.Normalize(vmin=0, vmax=best_cut)
     cmap_bif = plt.get_cmap("RdYlGn")
     bif_lo   = unique_lmax.min() - mu_vals.max() - 0.5
@@ -420,22 +414,21 @@ def make_figure2(args, n, edges, eq_data, sweep_data):
     ax_bif.text(0.01, 0.96, "← unstable", transform=ax_bif.transAxes,
                 ha="left", va="top", fontsize=10, color=C_UNSTABLE)
     _ax_style(ax_bif,
-              title=("Bifurcation diagram:  $\\lambda_{\\max}(D)-\\mu$  vs  $\\mu$  |  "
+              title=("Bifurcation diagram (Jacobian A):  $\\lambda_{\\max}(A) = \\lambda_{\\max}(D)-\\mu$  vs  $\\mu$  |  "
                      "line colour = cut quality  |  dots = stability transitions"),
               xlabel="$\\mu$",
               ylabel="$\\lambda_{\\max}(A)=\\lambda_{\\max}(D)-\\mu$")
 
     fig.suptitle(
-        f"OIM Bifurcation Analysis  |  {args.graph}  |  "
+        f"OIM Bifurcation Analysis (Jacobian) |  {args.graph}  |  "
         f"$N={n}$,  $|E|={len(edges)}$,  $2^N={n_eq}$ equilibria  |  "
         f"$\\mu_{{\\rm bin}}={mu_bin:.4f}$  |  "
         f"Best cut $={best_cut:.1f}$,  $W_{{\\rm tot}}={w_total:.1f}$",
         color=BLACK, fontsize=12, fontweight="bold")
     return fig
 
-
 # ═════════════════════════════════════════════════════════════════════════════
-# FIGURE 3 — Quality analysis  (unchanged)
+# FIGURE 3 — Quality analysis (Updated with Hessian)
 # ═════════════════════════════════════════════════════════════════════════════
 def make_figure3(args, n, W, eq_data, conv_results):
     rows = eq_data["rows"]
@@ -445,21 +438,27 @@ def make_figure3(args, n, W, eq_data, conv_results):
     current_mu = eq_data["mu"]
     reps = pick_representatives(rows)
 
-    H_all = np.array([r["H"] for r in rows])
-    cut_all = np.array([r["cut"] for r in rows])
-    stable_mask = np.array([r["stable"] for r in rows])
+    # 2x2 layout instead of 1x2
+    fig, axes = plt.subplots(2, 2, figsize=(18, 14), facecolor=WHITE)
+    fig.subplots_adjust(wspace=0.25, hspace=0.35, left=0.06, right=0.96,
+                        top=0.90, bottom=0.08)
 
-    fig, (ax_aspec, ax_dspec) = plt.subplots(
-        1, 2, figsize=(16, 7), facecolor=WHITE)
-    fig.subplots_adjust(wspace=0.32, left=0.07, right=0.97,
-                        top=0.88, bottom=0.12)
+    ax_aspec = axes[0, 0]
+    ax_dspec = axes[0, 1]
+    ax_hspec = axes[1, 0]
+    ax_empty = axes[1, 1]
 
-    # ── A(φ*) eigenvalue spectrum ─────────────────────────────────────────────
+    # Hide the empty bottom right subplot for now
+    ax_empty.set_visible(False)
+
     xidx = np.arange(1, n + 1)
+
+    # ── 1. A(φ*) Jacobian eigenvalue spectrum ─────────────────────────────────
     ev_a_all_reps = np.concatenate([eq["ev_A"] for eq, _, _, _ in reps])
     ev_a_lo, ev_a_hi = ev_a_all_reps.min(), ev_a_all_reps.max()
     margin_a = max(0.06 * (ev_a_hi - ev_a_lo), 0.4)
 
+    # Shading: A stable if all λ(A) < 0
     ax_aspec.fill_between([0.5, n + 0.5], ev_a_lo - margin_a, 0,
                           color=C_STABLE, alpha=0.10, zorder=0)
     ax_aspec.fill_between([0.5, n + 0.5], 0, ev_a_hi + margin_a,
@@ -468,7 +467,7 @@ def make_figure3(args, n, W, eq_data, conv_results):
                      alpha=0.55, zorder=2)
 
     for k_r, (eq, lbl, col, ls) in enumerate(reps):
-        ev_desc = eq["ev_A"][::-1]
+        ev_desc = eq["ev_A"][::-1] # largest to smallest
         ax_aspec.plot(xidx, ev_desc, color=col, linestyle=ls,
                       linewidth=2.2, marker="o", markersize=8,
                       label=lbl, zorder=3)
@@ -501,7 +500,7 @@ def make_figure3(args, n, W, eq_data, conv_results):
               ylabel="$\\lambda_k\\left(A(\\phi^*)\\right)$",
               titlesize=11)
 
-    # ── D(φ*) eigenvalue spectrum ─────────────────────────────────────────────
+    # ── 2. D(φ*) Laplacian eigenvalue spectrum ────────────────────────────────
     ev_all_reps = np.concatenate([eq["ev_D"] for eq, _, _, _ in reps])
     ev_lo, ev_hi = ev_all_reps.min(), ev_all_reps.max()
     margin = max(0.06 * (ev_hi - ev_lo), 0.4)
@@ -514,7 +513,7 @@ def make_figure3(args, n, W, eq_data, conv_results):
                      alpha=0.55, zorder=2)
 
     for k_r, (eq, lbl, col, ls) in enumerate(reps):
-        ev_desc = eq["ev_D"][::-1]
+        ev_desc = eq["ev_D"][::-1] # largest to smallest
         ax_dspec.plot(xidx, ev_desc, color=col, linestyle=ls,
                       linewidth=2.2, marker="o", markersize=8,
                       label=lbl, zorder=3)
@@ -547,16 +546,214 @@ def make_figure3(args, n, W, eq_data, conv_results):
               ylabel="$\\lambda_k\\left(D(\\phi^*)\\right)$",
               titlesize=11)
 
+    # ── 3. Hessian H(φ*) eigenvalue spectrum ──────────────────────────────────
+    # Hessian = -2 * A. Thus eigenvalues are -2 * ev_A
+    # A is stable when λ_max(A) < 0, which means H is stable when λ_min(H) > 0 (positive definite)
+    ev_h_all_reps = np.concatenate([eq["ev_H"] for eq, _, _, _ in reps])
+    ev_h_lo, ev_h_hi = ev_h_all_reps.min(), ev_h_all_reps.max()
+    margin_h = max(0.06 * (ev_h_hi - ev_h_lo), 0.4)
+
+    # Shading: H stable (positive definite) if all λ(H) > 0
+    # So we want Blue (C_STABLE) for λ > 0, Orange (C_UNSTABLE) for λ < 0
+    ax_hspec.fill_between([0.5, n + 0.5], 0, ev_h_hi + margin_h,
+                          color=C_STABLE, alpha=0.10, zorder=0)
+    ax_hspec.fill_between([0.5, n + 0.5], ev_h_lo - margin_h, 0,
+                          color=C_UNSTABLE, alpha=0.10, zorder=0)
+    ax_hspec.axhline(0, color=BLACK, linewidth=1.0, linestyle="--",
+                     alpha=0.55, zorder=2)
+
+    for k_r, (eq, lbl, col, ls) in enumerate(reps):
+        ev_asc = eq["ev_H"]  # smallest to largest! (since H = -2A, the order flips)
+        ax_hspec.plot(xidx, ev_asc, color=col, linestyle=ls,
+                      linewidth=2.2, marker="o", markersize=8,
+                      label=lbl, zorder=3)
+        # Annotate the MINIMUM eigenvalue
+        dy = margin_h * (0.6 + 0.35 * k_r)
+        # Because we plot smallest first, the first point is ev_asc[0]
+        ax_hspec.annotate(
+            f"$\\lambda_{{\\min}}={eq['lmin_H']:.3f}$\n"
+            f"$H={eq['H']:.1f}$ cut$={eq['cut']:.1f}$",
+            xy=(1, ev_asc[0]),
+            xytext=(1.6, ev_asc[0] - dy), # Point down instead of up
+            fontsize=9, color=col, zorder=5,
+            arrowprops=dict(arrowstyle="->", color=col, lw=0.9,
+                            shrinkA=2, shrinkB=2))
+
+    ax_hspec.set_xticks(xidx)
+    ax_hspec.set_xlim(0.5, n + 0.5)
+    ax_hspec.set_ylim(ev_h_lo - 3.5 * margin_h, ev_h_hi + 2 * margin_h)
+    ax_hspec.legend(fontsize=8.5, loc="upper left", ncol=1)
+    ax_hspec.text(0.98, 0.02, # Position at bottom right instead of top right
+                  f"Hessian at current $\\mu={current_mu:.3f}$\n"
+                  "$H(\\phi^*,\\mu)=-2 A(\\phi^*,\\mu)$\n"
+                  "Stable (Local Min) iff $\\lambda_{\\min}(H) > 0$",
+                  transform=ax_hspec.transAxes, ha="right", va="bottom",
+                  fontsize=9.5,
+                  bbox=dict(boxstyle="round,pad=0.35", facecolor=WHITE,
+                            edgecolor=GRAY, alpha=0.94))
+    _ax_style(ax_hspec,
+              title=("$H(\\phi^*,\\mu)$ Hessian spectrum — 3 representative equilibria\n"
+                     "Blue: $\\lambda>0$ (stable/convex) | Orange: $\\lambda<0$ (unstable/concave)"),
+              xlabel="Eigenvalue rank $k$ (smallest first)",
+              ylabel="$\\lambda_k\\left(H(\\phi^*)\\right)$",
+              titlesize=11)
+
+
     fig.suptitle(
         f"OIM Quality Analysis | {args.graph} | "
         f"$N={n}$, $2^N={len(rows)}$ equilibria | "
         f"$\\mu_{{\\rm bin}}={mu_bin:.4f}$ | "
         f"Best cut $={best_cut:.1f}$, $W_{{\\rm tot}}={w_total:.1f}$",
+        color=BLACK, fontsize=14, fontweight="bold")
+    return fig
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# FIGURE 4 — Hessian Bifurcation Diagram
+# ═════════════════════════════════════════════════════════════════════════════
+def make_figure4(args, n, edges, eq_data, sweep_data):
+    rows       = eq_data["rows"]
+    mu_bin     = eq_data["mu_bin"]
+    w_total    = eq_data["w_total"]
+    best_cut   = eq_data["best_cut"]
+    mu_vals    = sweep_data["mu_vals"]
+    n_eq       = eq_data["total"]
+    current_mu = eq_data["mu"]
+
+    lmax_D_all = np.array([r["lmax_D"] for r in rows])
+    H_all      = np.array([r["H"]      for r in rows])
+    cut_all    = np.array([r["cut"]    for r in rows])
+    unique_lmax, inverse, counts_lmax = np.unique(
+        np.round(lmax_D_all, 5), return_inverse=True, return_counts=True)
+    avg_H_per_lmax   = np.array([H_all  [inverse == k].mean()
+                                  for k in range(len(unique_lmax))])
+    avg_cut_per_lmax = np.array([cut_all[inverse == k].mean()
+                                  for k in range(len(unique_lmax))])
+
+    cmap_cut = plt.get_cmap("RdYlGn")
+    norm_cut = mcolors.Normalize(vmin=0, vmax=best_cut)
+
+    fig = plt.figure(figsize=(18, 12), facecolor=WHITE)
+    gs  = gridspec.GridSpec(2, 1, figure=fig,
+                            height_ratios=[0.70, 1.30], hspace=0.45,
+                            left=0.06, right=0.96, top=0.92, bottom=0.08)
+    ax_lmbar = fig.add_subplot(gs[0])
+    ax_bif_H = fig.add_subplot(gs[1])
+
+    # ── bar chart ─────────────────────────────────────────────────────────────
+    sorted_rows = sorted(rows, key=lambda r: r["lmax_D"])
+    lmax_arr    = np.array([r["lmax_D"] for r in sorted_rows])
+    cut_arr_s   = np.array([r["cut"]    for r in sorted_rows])
+    bar_cols    = [cmap_cut(norm_cut(c)) for c in cut_arr_s]
+
+    ax_lmbar.bar(np.arange(n_eq), lmax_arr,
+                 color=bar_cols, width=1.0, edgecolor="none", zorder=2)
+    ax_lmbar.axhline(0,          color=BLACK,     linewidth=0.9,  zorder=3)
+    ax_lmbar.axhline(mu_bin,     color=C_STABLE,  linewidth=2.0,
+                     linestyle="--", zorder=5,
+                     label=f"$\\mu_{{\\rm bin}} = {mu_bin:.3f}$")
+    ax_lmbar.axhline(current_mu, color=C_MU_LINE, linewidth=2.0,
+                     linestyle="--", zorder=6,
+                     label=f"current $\\mu = {current_mu:.3f}$")
+
+    sm_bar = plt.cm.ScalarMappable(cmap=cmap_cut, norm=norm_cut)
+    sm_bar.set_array([])
+    cb_bar = fig.colorbar(sm_bar, ax=ax_lmbar, fraction=0.015, pad=0.01)
+    cb_bar.set_label("Cut value", fontsize=10)
+    cb_bar.ax.tick_params(labelsize=9)
+    cb_bar.outline.set_edgecolor(BLACK)
+
+    ax_lmbar.set_xlim(-1, n_eq)
+    ax_lmbar.legend(fontsize=10, loc="upper left")
+    _ax_style(ax_lmbar,
+              title=(f"$\\lambda_{{\\max}}(D(\\phi^*))$ for all $2^N={n_eq}$ equilibria  "
+                     f"(sorted)  |  bar colour = cut quality  |  "
+                     f"stable at current $\\mu$: {eq_data['n_stable']}/{n_eq}"),
+              xlabel="Equilibrium index",
+              ylabel="$\\lambda_{\\max}(D(\\phi^*))$")
+
+    # ── bifurcation diagram (Hessian) ─────────────────────────────────────────
+    norm_bif = mcolors.Normalize(vmin=0, vmax=best_cut)
+    cmap_bif = plt.get_cmap("RdYlGn")
+
+    # For A: max eigenvalue of A is lambda_max(D) - mu.
+    # For H: H = -2A. Therefore the min eigenvalue of H is 2*mu - 2*lambda_max(D).
+
+    bif_lo_A = unique_lmax.min() - mu_vals.max() - 0.5
+    bif_hi_A = unique_lmax.max() + 0.5
+
+    bif_lo_H = -2.0 * bif_hi_A
+    bif_hi_H = -2.0 * bif_lo_A
+
+    ax_bif_H.fill_between(mu_vals,
+                        0, np.maximum(-2.0 * sweep_data["lmax_A_min_mu"], 0),
+                        color=C_STABLE,   alpha=0.12, zorder=0)
+    ax_bif_H.fill_between(mu_vals, 
+                        np.minimum(-2.0 * sweep_data["lmax_A_max_mu"], 0), 0,
+                        color=C_UNSTABLE, alpha=0.10, zorder=0)
+    ax_bif_H.axhline(0, color=BLACK, linewidth=1.5, zorder=5,
+                   label="$\\lambda_{\\min}(H)=0$  (stability boundary)")
+    ax_bif_H.axvline(current_mu, color=C_MU_LINE, linewidth=1.8,
+                   linestyle="--", zorder=6,
+                   label=f"current $\\mu={current_mu:.3f}$")
+    ax_bif_H.axvline(mu_bin, color=BLACK, linewidth=1.8,
+                   linestyle=":", zorder=7,
+                   label=f"$\\mu_{{\\rm bin}}={mu_bin:.3f}$")
+
+    n_unique   = len(unique_lmax)
+    ann_y_vals_H = np.linspace(bif_lo_H * 0.95, bif_lo_H * 0.05, n_unique)
+
+    for idx, (lm, cnt, H_mean, cut_mean) in enumerate(
+            zip(unique_lmax, counts_lmax, avg_H_per_lmax, avg_cut_per_lmax)):
+        c  = cmap_bif(norm_bif(cut_mean))
+        lw = 0.8 + 0.55 * np.log1p(cnt / 2.0)
+        # Plot lambda_min(H) = 2 * mu - 2 * lm
+        ax_bif_H.plot(mu_vals, 2.0 * mu_vals - 2.0 * lm, color=c, linewidth=lw, alpha=0.85)
+        mu_star = lm
+        if mu_vals[0] <= mu_star <= mu_vals[-1]:
+            ax_bif_H.scatter([mu_star], [0.0], color=c, s=55, zorder=7,
+                           edgecolors=BLACK, linewidths=0.7)
+            if idx == 0 or idx == 1 or idx % 5 == 0:
+                ax_bif_H.annotate(
+                    f"$\\mu^*={mu_star:.2f}$\n"
+                    f"$\\bar{{H}}={H_mean:.1f}$\n"
+                    f"cut$={cut_mean:.1f}$  $\\times{cnt}$",
+                    xy=(mu_star, 0.0),
+                    xytext=(mu_star + (mu_vals[-1] - mu_vals[0]) * 0.012,
+                            ann_y_vals_H[idx]),
+                    fontsize=7, color=c, zorder=8,
+                    arrowprops=dict(arrowstyle="->", color=c, lw=0.65,
+                                    shrinkA=2, shrinkB=2))
+
+    cb_bif_H = fig.colorbar(sm_bar, ax=ax_bif_H, fraction=0.012, pad=0.01)
+    cb_bif_H.set_label("Mean cut at $\\mu^*$", fontsize=10)
+    cb_bif_H.ax.tick_params(labelsize=9)
+    cb_bif_H.outline.set_edgecolor(BLACK)
+
+    ax_bif_H.set_xlim(mu_vals[0], mu_vals[-1])
+    ax_bif_H.set_ylim(bif_lo_H, bif_hi_H)
+    ax_bif_H.legend(fontsize=10, loc="lower right", framealpha=0.93)
+    ax_bif_H.text(0.01, 0.96, "← stable (positive definite)",   transform=ax_bif_H.transAxes,
+                ha="left", va="top", fontsize=10, color=C_STABLE)
+    ax_bif_H.text(0.01, 0.04, "← unstable", transform=ax_bif_H.transAxes,
+                ha="left", fontsize=10, color=C_UNSTABLE)
+    _ax_style(ax_bif_H,
+              title=("Bifurcation diagram (Hessian H):  $\\lambda_{\\min}(H) = 2\\mu - 2\\lambda_{\\max}(D)$  vs  $\\mu$  |  "
+                     "line colour = cut quality  |  dots = stability transitions"),
+              xlabel="$\\mu$",
+              ylabel="$\\lambda_{\\min}(H)=2\\mu - 2\\lambda_{\\max}(D)$")
+
+    fig.suptitle(
+        f"OIM Hessian Bifurcation Analysis  |  {args.graph}  |  "
+        f"$N={n}$,  $|E|={len(edges)}$,  $2^N={n_eq}$ equilibria  |  "
+        f"$\\mu_{{\\rm bin}}={mu_bin:.4f}$  |  "
+        f"Best cut $={best_cut:.1f}$,  $W_{{\\rm tot}}={w_total:.1f}$",
         color=BLACK, fontsize=12, fontweight="bold")
     return fig
+
 def main():
     parser = argparse.ArgumentParser(
-        description="OIM eigenvalue sweep & bifurcation analysis — 3 figures")
+        description="OIM eigenvalue sweep & bifurcation analysis — 4 figures")
     parser.add_argument("--graph",  required=True)
     parser.add_argument("--mu_min", type=float, default=None)
     parser.add_argument("--mu_max", type=float, default=None)
@@ -566,7 +763,7 @@ def main():
     parser.add_argument("--t_end",  type=float, default=80.0)
     parser.add_argument("--seed",   type=int,   default=42)
     parser.add_argument("--save",   action="store_true",
-                        help="Save all 3 figures as PDF+PNG")
+                        help="Save all figures as PDF+PNG")
     args = parser.parse_args()
 
     print(f"\nLoading graph: {args.graph}")
@@ -614,30 +811,7 @@ def main():
     print(f"  Bifurcation points: {len(sweep_data['bifurcation_pts'])}")
 
     # ── simulation  ───────────────────────────────────────────────────────────
-    # FIX: uniform(-π, π) — NOT the original uniform(-0.08, 0.08).
-    #
-    # The original narrow range was the root cause of the ±π/2 trap:
-    #
-    #   1. All N spins start near 0.
-    #   2. Bipartite coupling antisymmetrically pushes partition A toward +φ
-    #      and partition B toward -φ, transiting through ±π/2.
-    #   3. At θ = ±π/2, the SHIL restoring force is
-    #          (μ/2) sin(2·π/2) = (μ/2) sin(π) = 0
-    #      so there is NO force to escape from ±π/2.
-    #   4. Escape happens via higher-order corrections with time scale ∝ 1/μ.
-    #      At μ = 0.01 that is ≈ 100 × t_end = 8000 time units — far beyond
-    #      the integration window of 80.
-    #
-    # Wide initialisation from [−π, π] breaks this symmetry: each trajectory
-    # starts in a different region of phase space and converges directly to
-    # a binary {0, π} equilibrium without passing through ±π/2.
-    #
-    # The same fix is used in experiment_maxcut_interactive.py (line 153):
-    #     phi0_list = [rng.uniform(-np.pi, np.pi, N) for _ in range(n_init)]
-
-    # ========================================================================= #
-
-    MU_SIM  = max(global_lmax_min + 0.1, mu_min_eff + 0.02) # Here is where we tune the mu where we will test a higher mu or not.
+    MU_SIM  = max(global_lmax_min + 0.1, mu_min_eff + 0.02)
     rng     = np.random.default_rng(args.seed)
     phi0s   = [rng.uniform(-np.pi, np.pi, n) for _ in range(args.n_init)]  # ← FIX
     oim_sim = OIMMaxCut(W, mu=MU_SIM, seed=args.seed)
@@ -682,11 +856,13 @@ def main():
 
     fig2 = make_figure2(args, n, edges, eq_data, sweep_data)
     fig3 = make_figure3(args, n, W, eq_data, conv_results)
+    fig4 = make_figure4(args, n, edges, eq_data, sweep_data)
 
     if args.save:
         stem = args.graph.replace("/", "_").replace("\\", "_").rstrip(".txt")
         for tag, fig in [("bifurcation", fig2),
-                         ("quality", fig3)]:
+                         ("quality", fig3),
+                         ("hessian_bifurcation", fig4)]:
             for ext in ("pdf", "png"):
                 fname = f"oim_{tag}_{stem}.{ext}"
                 fig.savefig(fname, bbox_inches="tight", dpi=150)
