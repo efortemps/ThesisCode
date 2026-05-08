@@ -14,6 +14,24 @@ In the HNN there is only ONE global threshold: the gain parameter u0.
                                   simultaneously.
   • u0_bin is the critical u0 below which all trajectories binarise.
 
+Integration — RK45 via scipy.integrate.solve_ivp
+──────────────────────────────────────────────────
+The Euler integrator requires n_steps × dt wall-time and is
+bottlenecked by Python loop overhead.  For G-Set graphs (N ≥ 800) at small
+u0 the stability limit forces dt < 1e-4, meaning ≥ 50 000 steps just to
+reach t = 5 — making the experiment run for many hours.
+
+RK45 (adaptive Runge-Kutta 4/5) from scipy solves this:
+  • Adapts its internal step size automatically — large steps when the
+    state changes slowly, small steps only during fast transients.
+  • For the HNN after the initial binarisation transient the state barely
+    moves, so RK45 takes very large steps → effectively 10–100× fewer
+    evaluations than fixed-step Euler.
+  • No stability concerns: RK45 chooses a step size that respects error
+    tolerances at each u0 value independently.
+  • Total cost: O(n_evals × N²) where n_evals ≈ 100–500 per trajectory
+    instead of n_steps = 20 000–500 000 for Euler.
+
 Procedure
 ─────────
 Phase 1 — find û0_bin empirically
@@ -37,17 +55,17 @@ Usage
 python gset_hopfield_experiment.py --graph G1.txt [options]
 
 --graph PATH          G-Set file (required)
---u0_start   FLOAT    Phase-1 scan start (default: 2.0)
---u0_min     FLOAT    Phase-1 scan lower bound (default: 0.001)
---u0_step    FLOAT    Phase-1 step size, logarithmic (default: 10 steps/decade)
---n_u0_2     INT      Phase-2 number of u0 points (default: 30)
---u0_2_factor FLOAT   Phase-2 lower bound = û0_bin / u0_2_factor (default: 4.0)
---n_init     INT      trajectories per u0 (default: 20)
---n_steps    INT      Euler integration steps (default: 500000)
---timestep   FLOAT    Euler dt (default: 1e-5)
---init_mode  STR      HNN init mode: small_random|large_random|min_eigenvec
---seed       INT      RNG seed (default: 42)
---known_opt  FLOAT    known optimum cut (for gap reporting, optional)
+--u0_start   FLOAT    Phase-1 scan start         (default: 2.0)
+--u0_min     FLOAT    Phase-1 scan lower bound   (default: 0.001)
+--u0_step    FLOAT    Phase-1 step size (log)    (default: 5 steps/decade)
+--n_u0_2     INT      Phase-2 number of u0 points(default: 15)
+--u0_2_factor FLOAT   Phase-2 lower = û0_bin / f (default: 4.0)
+--n_init     INT      trajectories per u0         (default: 10)
+--t_end      FLOAT    ODE integration horizon     (default: 30.0)
+--rtol       FLOAT    RK45 relative tolerance     (default: 1e-4)
+--atol       FLOAT    RK45 absolute tolerance     (default: 1e-6)
+--seed       INT      RNG seed                    (default: 42)
+--known_opt  FLOAT    known optimum cut (optional, for gap reporting)
 --save               save figures as PDF + PNG
 ──────────────────────────────────────────────────────────────────────────────
 """
@@ -57,11 +75,10 @@ import time
 from pathlib import Path
 
 import numpy as np
+from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.lines as mlines
-
-from MaxCut_Experiment.src.Hopfield import HopfieldNetMaxCut
 
 # ── plotting style (mirrors OIM experiment) ───────────────────────────────────
 plt.rcParams.update({
@@ -140,79 +157,115 @@ def parse_gset(path: str):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Binarisation check
-# ═══════════════════════════════════════════════════════════════════════════════
-def is_binarised(net: HopfieldNetMaxCut, tol: float = 0.05) -> bool:
-    """
-    Return True if every activation |tanh(u_i/u0)| > 1 - tol,
-    i.e. every neuron is saturated close to ±1.
-    """
-    s = net.activation(net.u)
-    return bool(np.all(np.abs(s) > 1.0 - tol))
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # Single-u0 run
 # ═══════════════════════════════════════════════════════════════════════════════
-def run_u0(W: np.ndarray, u0: float, u0_inits: list,
-           n_steps: int, timestep: float,
-           init_mode: str, seed: int,
-           bin_tol: float = 0.05) -> dict:
+def _hnn_rhs(t: float, u: np.ndarray, W: np.ndarray, u0: float) -> np.ndarray:
     """
-    Run n_init Hopfield trajectories at a given u0 (Euler integration).
+    HNN ODE right-hand side (standalone, avoids Python method-call overhead).
+
+        du/dt = −u − W tanh(u/u0)          (tau = 1)
+
+    Called directly by scipy solve_ivp — no HopfieldNetMaxCut wrapper needed
+    during integration, which eliminates the per-step Python dispatch overhead
+    that made the Euler loop slow.
+    """
+    return -u - W @ np.tanh(u / u0)
+
+
+def _binary_cut(u: np.ndarray, W: np.ndarray, u0: float) -> float:
+    """Cut value after hard binarisation  σ = sign(tanh(u/u0))."""
+    sigma = np.sign(np.tanh(u / u0))
+    sigma[sigma == 0] = 1.0
+    return 0.25 * float(np.sum(W * (1.0 - sigma[:, None] * sigma[None, :])))
+
+
+def _is_binarised(u: np.ndarray, u0: float, tol: float = 0.05) -> bool:
+    """True iff every |tanh(u_i/u0)| > 1 − tol."""
+    return bool(np.all(np.abs(np.tanh(u / u0)) > 1.0 - tol))
+
+
+def _partition(u: np.ndarray, u0: float) -> np.ndarray:
+    """Hard spin assignment  σ ∈ {−1, +1}^N."""
+    s = np.sign(np.tanh(u / u0))
+    s[s == 0] = 1.0
+    return s
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Single-u0 run  (RK45, fixes rebuild bug)
+# ═══════════════════════════════════════════════════════════════════════════════
+def run_u0(W: np.ndarray, u0: float, u0_inits: list,
+           t_end: float, rtol: float, atol: float,
+           seed: int, bin_tol: float = 0.05) -> dict:
+    """
+    Run n_init Hopfield trajectories at a given u0 using RK45.
+
+    Why RK45 instead of Euler
+    ──────────────────────────
+    The Euler loop  `for _ in range(n_steps): net.update()`  has two costs:
+      1. Python function-call overhead  (~5 μs × n_steps per trajectory)
+      2. n_steps must be large enough that n_steps × dt reaches t_end while
+         satisfying the Euler stability condition dt < 2/(1 + λ_max(W)/u0).
+         At u0=0.01 on G1 this forces dt < 4e-4, so ≥ 12 500 steps for t=5.
+
+    RK45 (scipy) adapts its step size internally:
+      • During fast transients (early binarisation) it takes small steps.
+      • Once the state barely moves it takes very large steps.
+      • Total evaluations: ~100–500 per trajectory vs. 20 000+ for Euler.
+      • No stability concerns: the solver guarantees the requested tolerances.
+
+    Bug fix: original code ran n_steps AGAIN to rebuild the best partition.
+    Here, each trajectory's terminal state u[:, −1] is stored in a list and
+    the best partition is read directly — no extra integration needed.
 
     Parameters
     ----------
-    u0_inits : list of np.ndarray
-        Pre-drawn initial membrane-potential vectors u(0) ∈ R^n.
-        We bypass HNN._init_inputs() and inject them directly so that
-        every u0 value sees the exact same starting conditions.
+    W         : (N, N) symmetric weight matrix
+    u0        : gain parameter
+    u0_inits  : list of (N,) initial membrane-potential vectors
+    t_end     : integration horizon in dimensionless time  (default: 30)
+    rtol/atol : RK45 tolerances
+    seed      : (unused here, kept for API compatibility)
+    bin_tol   : binarisation tolerance  |tanh(u_i/u0)| > 1 − bin_tol
 
-    Returns dict with keys identical in spirit to OIM run_mu():
+    Returns dict with keys:
         u0, best_cut, mean_cut, std_cut, best_partition,
-        bin_fraction, all_cuts, all_bin, t_elapsed
+        bin_fraction, all_cuts, all_bin, t_elapsed, n_func_evals
     """
     t0 = time.perf_counter()
-    n = W.shape[0]
+    N  = W.shape[0]
 
-    cuts     = []
-    bin_mask = []
+    cuts         = []
+    bin_flags    = []
+    terminal_us  = []   # store terminal u-state for each IC (fixes rebuild bug)
+    total_evals  = 0
 
     for u_init in u0_inits:
-        net = HopfieldNetMaxCut(
-            weight_matrix       = W,
-            seed                = seed,
-            u0                  = u0,
-            init_mode           = init_mode,
-            integration_method  = "euler",
+        sol = solve_ivp(
+            _hnn_rhs,
+            t_span=(0.0, t_end),
+            y0=u_init,
+            method="RK45",
+            args=(W, u0),
+            rtol=rtol,
+            atol=atol,
+            dense_output=False,
         )
-        # Inject pre-drawn initial condition
-        net.u = u_init.copy()
+        u_final = sol.y[:, -1]
+        terminal_us.append(u_final)
+        total_evals += sol.nfev
 
-        # Euler integration
-        for _ in range(n_steps):
-            net.update()
+        cuts.append(_binary_cut(u_final, W, u0))
+        bin_flags.append(_is_binarised(u_final, u0, bin_tol))
 
-        # Extract results
-        cut  = net.get_binary_cut_value()
-        binarised = is_binarised(net, tol=bin_tol)
-        cuts.append(cut)
-        bin_mask.append(binarised)
+    cuts      = np.array(cuts, dtype=float)
+    bin_flags = np.array(bin_flags)
 
-    cuts     = np.array(cuts, dtype=float)
-    bin_mask = np.array(bin_mask)
+    best_idx  = int(np.argmax(cuts))
+    bin_cuts  = cuts[bin_flags]
 
-    best_idx   = int(np.argmax(cuts))
-    bin_cuts   = cuts[bin_mask]
-
-    # Rebuild best network to get partition
-    net_best = HopfieldNetMaxCut(W, seed=seed, u0=u0,
-                                 init_mode=init_mode,
-                                 integration_method="euler")
-    net_best.u = u0_inits[best_idx].copy()
-    for _ in range(n_steps):
-        net_best.update()
-    partition = net_best.get_partition()
+    # Read partition directly from stored terminal state — no re-integration
+    partition = _partition(terminal_us[best_idx], u0)
 
     return dict(
         u0            = u0,
@@ -220,10 +273,11 @@ def run_u0(W: np.ndarray, u0: float, u0_inits: list,
         mean_cut      = float(bin_cuts.mean()) if len(bin_cuts) else float(cuts.mean()),
         std_cut       = float(bin_cuts.std())  if len(bin_cuts) else float(cuts.std()),
         best_partition= partition,
-        bin_fraction  = float(bin_mask.mean()),
+        bin_fraction  = float(bin_flags.mean()),
         all_cuts      = cuts.tolist(),
-        all_bin       = bin_mask.tolist(),
+        all_bin       = bin_flags.tolist(),
         t_elapsed     = time.perf_counter() - t0,
+        n_func_evals  = total_evals,
     )
 
 
@@ -262,7 +316,6 @@ def phase1_find_u0_bin(W, u0_inits, args):
     u0_hat_bin : float
     records    : list of run_u0 dicts
     """
-    # Build a descending log-spaced grid
     n_pts = int(np.ceil(np.log10(args.u0_start / args.u0_min)
                         * args.u0_steps_per_decade)) + 1
     u0_grid = np.logspace(np.log10(args.u0_start),
@@ -274,25 +327,27 @@ def phase1_find_u0_bin(W, u0_inits, args):
     u0_hat_bin = None
 
     print(f"\n{'='*65}")
-    print(f" PHASE 1 — empirical û0_bin search (downward sweep)")
+    print(f" PHASE 1 — empirical û0_bin search (downward sweep, RK45)")
     print(f" u0 grid: [{args.u0_start:.4f}, {args.u0_min:.6f}] "
           f"({len(u0_grid)} pts, log-spaced)")
-    print(f" n_init={n_init}  n_steps={args.n_steps}  dt={args.timestep}")
+    print(f" n_init={n_init}  t_end={args.t_end}  "
+          f"rtol={args.rtol:.0e}  atol={args.atol:.0e}")
     print(f"{'='*65}")
     hdr = (f"  {'u0':>10} {'bin_frac':>9} {'best_cut':>10} "
-           f"{'mean_cut':>10} {'t(s)':>6}")
+           f"{'mean_cut':>10} {'nfev':>7} {'t(s)':>6}")
     print(hdr)
-    print("  " + "─" * (10 + 9 + 10 + 10 + 6 + 8))
+    print("  " + "─" * (10 + 9 + 10 + 10 + 7 + 6 + 8))
 
     for u0 in u0_grid:
         rec = run_u0(W, u0, u0_inits,
-                     args.n_steps, args.timestep,
-                     args.init_mode, args.seed)
+                     args.t_end, args.rtol, args.atol,
+                     args.seed)
         records.append(rec)
 
         flag = " ← û0_bin ✓" if rec["bin_fraction"] == 1.0 and u0_hat_bin is None else ""
         print(f"  {u0:>10.5f} {rec['bin_fraction']:>9.3f} "
               f"{rec['best_cut']:>10.2f} {rec['mean_cut']:>10.2f} "
+              f"{rec['n_func_evals']:>7} "
               f"{rec['t_elapsed']:>6.1f}s{flag}")
 
         if rec["bin_fraction"] == 1.0 and u0_hat_bin is None:
@@ -317,30 +372,32 @@ def phase2_quality_sweep(W, u0_inits, u0_hat_bin, args):
     """
     Dense sweep of u0 values ≤ û0_bin (log-spaced downward).
     """
-    u0_lo = u0_hat_bin / args.u0_2_factor
+    u0_lo  = u0_hat_bin / args.u0_2_factor
     u0_arr = np.logspace(np.log10(u0_hat_bin),
                          np.log10(max(u0_lo, 1e-6)),
                          num=args.n_u0_2)
 
     print(f"{'='*65}")
     print(f" PHASE 2 — quality sweep u0 ∈ [{u0_lo:.5f}, {u0_hat_bin:.5f}]"
-          f"  ({args.n_u0_2} pts)")
-    print(f" n_init={len(u0_inits)}  n_steps={args.n_steps}  dt={args.timestep}")
+          f"  ({args.n_u0_2} pts, RK45)")
+    print(f" n_init={len(u0_inits)}  t_end={args.t_end}  "
+          f"rtol={args.rtol:.0e}  atol={args.atol:.0e}")
     print(f"{'='*65}")
     hdr = (f"  {'u0':>10} {'bin_frac':>9} {'best_cut':>10} "
-           f"{'mean_cut':>10} {'std_cut':>8} {'t(s)':>6}")
+           f"{'mean_cut':>10} {'std_cut':>8} {'nfev':>7} {'t(s)':>6}")
     print(hdr)
-    print("  " + "─" * (10 + 9 + 10 + 10 + 8 + 6 + 8))
+    print("  " + "─" * (10 + 9 + 10 + 10 + 8 + 7 + 6 + 8))
 
     records = []
     for u0 in u0_arr:
         rec = run_u0(W, u0, u0_inits,
-                     args.n_steps, args.timestep,
-                     args.init_mode, args.seed)
+                     args.t_end, args.rtol, args.atol,
+                     args.seed)
         records.append(rec)
         print(f"  {u0:>10.5f} {rec['bin_fraction']:>9.3f} "
               f"{rec['best_cut']:>10.2f} {rec['mean_cut']:>10.2f} "
-              f"{rec['std_cut']:>8.3f} {rec['t_elapsed']:>6.1f}s")
+              f"{rec['std_cut']:>8.3f} {rec['n_func_evals']:>7} "
+              f"{rec['t_elapsed']:>6.1f}s")
 
     best = max(records, key=lambda r: r["best_cut"])
     print(f"\n → Best cut in Phase 2: {best['best_cut']:.2f} "
@@ -553,30 +610,30 @@ def print_summary(args, n, w_total, u0_hat_bin, u0_theory,
 # ═══════════════════════════════════════════════════════════════════════════════
 def main():
     parser = argparse.ArgumentParser(
-        description="G-Set Hopfield-Tank Max-Cut experiment: u0 sweep")
+        description="G-Set Hopfield-Tank Max-Cut experiment: u0 sweep (RK45)")
     parser.add_argument("--graph",   required=True,
                         help="Path to G-Set benchmark file")
     parser.add_argument("--u0_start", type=float, default=2.0,
                         help="Phase-1 scan start (default: 2.0)")
     parser.add_argument("--u0_min",  type=float, default=0.001,
                         help="Phase-1 minimum u0 (default: 0.001)")
-    parser.add_argument("--u0_steps_per_decade", type=int, default=10,
-                        help="Log-grid steps per decade in Phase-1 (default: 10)")
-    parser.add_argument("--n_u0_2",  type=int, default=30,
-                        help="Phase-2 number of u0 points (default: 30)")
+    parser.add_argument("--u0_steps_per_decade", type=int, default=5,
+                        help="Log-grid steps per decade in Phase-1 (default: 5)")
+    parser.add_argument("--n_u0_2",  type=int, default=15,
+                        help="Phase-2 number of u0 points (default: 15)")
     parser.add_argument("--u0_2_factor", type=float, default=4.0,
                         help="Phase-2 lower = û0_bin / factor (default: 4.0)")
-    parser.add_argument("--n_init",  type=int, default=20,
-                        help="Trajectories per u0 (default: 20)")
-    parser.add_argument("--n_steps", type=int, default=500_000,
-                        help="Euler steps per trajectory (default: 500 000)")
-    parser.add_argument("--timestep", type=float, default=1e-5,
-                        help="Euler dt (default: 1e-5)")
-    parser.add_argument("--init_mode", type=str, default="small_random",
-                        choices=["small_random", "large_random",
-                                 "bad_partition", "ferromagnetic",
-                                 "min_eigenvec"],
-                        help="HNN initialisation mode (default: small_random)")
+    parser.add_argument("--n_init",  type=int, default=10,
+                        help="Trajectories per u0 (default: 10)")
+    # RK45 parameters (replace Euler n_steps / timestep)
+    parser.add_argument("--t_end",   type=float, default=30.0,
+                        help="ODE integration horizon in dimensionless time "
+                             "(default: 30.0 — RK45 takes large steps once "
+                             "binarised, so this is cheap)")
+    parser.add_argument("--rtol",    type=float, default=1e-4,
+                        help="RK45 relative tolerance (default: 1e-4)")
+    parser.add_argument("--atol",    type=float, default=1e-6,
+                        help="RK45 absolute tolerance (default: 1e-6)")
     parser.add_argument("--seed",    type=int, default=42)
     parser.add_argument("--known_opt", type=float, default=None,
                         help="Known optimum cut value (optional)")
@@ -596,14 +653,14 @@ def main():
     print(f"   (origin unstable for u0 < u0_bin → all corners become attractors)")
 
     # ── fixed initial conditions (same u_init across all u0) ───────────────
-    rng     = np.random.default_rng(args.seed)
-    # Draw u(0) from a small-random distribution (matches init_mode='small_random')
-    # so that Phase 1 starts near the origin — the expected high-u0 fixed point.
+    rng      = np.random.default_rng(args.seed)
     u0_inits = [rng.uniform(-0.5e-4, 0.5e-4, n)
                 for _ in range(args.n_init)]
     print(f"\n {args.n_init} initial conditions drawn from "
           f"uniform(-5e-5, 5e-5) (seed={args.seed})")
     print(f" Same u_inits used across all u0 — isolates u0 effect from IC noise.")
+    print(f" Integration: RK45  t_end={args.t_end}  "
+          f"rtol={args.rtol:.0e}  atol={args.atol:.0e}")
 
     # ── Phase 1 ─────────────────────────────────────────────────────────────
     t_total = time.perf_counter()

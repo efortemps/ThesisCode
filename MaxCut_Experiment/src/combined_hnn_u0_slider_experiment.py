@@ -187,39 +187,29 @@ def simulate_trajectory(W, u0, u_init, t_end, n_points):
 
 
 def identify_convergence(sol, W, u0, best_cut, bintol=0.05):
-    """
-    Given a solution sol, classify the terminal state:
-    - bits (sign of s_final).
-    - cut value.
-    - residual = max_i | |s_i| - 1 |.
-    - type:
-        M2-binary    : all |s_i| ≈ 1  (converged to ±1 corners)
-        M1-mixed     : some |s_i| ≈ 1, some |s_i| ≈ 0, none intermediate
-        Type-III     : at least one s_i at an intermediate value (≠ 0 or ±1)
-        not-converged: all |s_i| near 0 (stuck at origin)
-
-    Note: the original code had `elif nz + no + nh == len(s_final)` as the
-    Type-III guard, which is a tautology (nh is defined as n - nz - no), so
-    Type-III was NEVER reachable. Fixed below.
-    """
     s_final = np.tanh(sol.y[:, -1] / u0)
     sigma = np.sign(s_final)
     sigma[sigma == 0] = 1.0
 
-    cut = 0.25 * float(np.sum(W * (1.0 - np.outer(sigma, sigma))))
-
-    nz = sum(1 for s in s_final if abs(s) < bintol)           # near 0
-    no = sum(1 for s in s_final if abs(abs(s) - 1.0) < bintol) # near ±1
-    nh = len(s_final) - nz - no                                 # intermediate
+    # Classify convergence state BEFORE computing cut
+    nz = sum(1 for s in s_final if abs(s) < bintol)
+    no = sum(1 for s in s_final if abs(abs(s) - 1.0) < bintol)
+    nh = len(s_final) - nz - no
 
     if np.max(np.abs(s_final)) < 1e-3:
-        stype = "not-converged"       # all activations near 0
+        stype = "not-converged"
     elif no == len(s_final):
-        stype = "M2-binary"           # every spin at ±1
+        stype = "M2-binary"
     elif nh == 0:
-        stype = "M1-mixed"            # mix of 0 and ±1, nothing intermediate
+        stype = "M1-mixed"
     else:
-        stype = "Type-III"            # at least one spin at a continuous value
+        stype = "Type-III"
+
+    # Only compute a meaningful cut if the network actually made a decision
+    if stype == "not-converged":
+        cut = 0.0
+    else:
+        cut = 0.25 * float(np.sum(W * (1.0 - np.outer(sigma, sigma))))
 
     residual = float(np.max(np.abs(np.abs(s_final) - 1.0)))
     bits = tuple(1 if s > 0 else 0 for s in sigma)
@@ -280,18 +270,6 @@ def _draw_styled_table(ax, conv_list, best_cut, n_init, u0, u0_bin):
     ax.set_facecolor(WHITE)
     ax.axis("off")
 
-    rows1 = [
-        [
-            str(i),
-            c["state_type"],
-            "".join(str(b) for b in c["bits"]),
-            f"{c['cut']:.2f}",
-            "★" if c["is_opt"] else ("✓" if c["is_binary"] else "✗"),
-            f"{c['residual']:.4f}",
-        ]
-        for i, c in enumerate(conv_list)
-    ]
-
     summary = {}
     for c in conv_list:
         key = (c["state_type"], c["bits"])
@@ -309,7 +287,6 @@ def _draw_styled_table(ax, conv_list, best_cut, n_init, u0, u0_bin):
 
     rows2 = [
         [
-            s["stype"],
             "".join(str(b) for b in s["bits"]),
             f"{s['cut']:.2f}",
             str(s["count"]),
@@ -320,9 +297,25 @@ def _draw_styled_table(ax, conv_list, best_cut, n_init, u0, u0_bin):
         for s in sorted(summary.values(), key=lambda x: -x["cut"])
     ]
 
+    # ── geometry constants ────────────────────────────────────────────────────
+    BANNER_H   = 0.055          # height of the dark title banner
+    HDR_H      = 0.060          # height of the column-header row
+    ROW_H      = 0.055          # height of each data row
+    STATUS_H   = 0.06           # approximate height of the status text box
+    LEGEND_H   = 0.08           # approximate height of the legend
+    GAP        = 0.03           # vertical gap between blocks
+
+    n_rows      = len(rows2)
+    table_h     = HDR_H + ROW_H * n_rows
+    block_h     = BANNER_H + table_h + GAP + STATUS_H + GAP + LEGEND_H
+
+    # Centre the whole block vertically: start the banner at this y
+    y_banner_top = 0.5 + block_h / 2.0
+
     def _section(y, title, hdrs, data, tcol, ocol=None):
+        # ── dark title banner ─────────────────────────────────────────────────
         banner = FancyBboxPatch(
-            (0.0, y - 0.045), 1.0, 0.045,
+            (0.0, y - BANNER_H), 1.0, BANNER_H,
             boxstyle="square,pad=0",
             transform=ax.transAxes,
             facecolor="#3a3a3a",
@@ -331,31 +324,33 @@ def _draw_styled_table(ax, conv_list, best_cut, n_init, u0, u0_bin):
             clip_on=False,
         )
         ax.add_patch(banner)
+        # Title text centered INSIDE the banner
         ax.text(
-            0.5, y - 0.0225, title,
+            0.5, y - BANNER_H / 2.0, title,
             transform=ax.transAxes,
             ha="center", va="center",
-            fontsize=8.5, fontweight="bold",
+            fontsize=9.0, fontweight="bold",
             color=WHITE,
         )
 
-        bottom = y - 0.05 - 0.048 * len(data)
+        # ── table sits directly below the banner ─────────────────────────────
+        table_bottom = y - BANNER_H - table_h
         tbl = ax.table(
             cellText=data,
             colLabels=hdrs,
-            bbox=[0.0, bottom, 1.0, 0.05 + 0.048 * len(data)],
+            bbox=[0.0, table_bottom, 1.0, table_h],
             cellLoc="center",
         )
         tbl.auto_set_font_size(False)
-        tbl.set_fontsize(7.8)
+        tbl.set_fontsize(8.0)
 
-        # header row
+        # header row styling
         for j in range(len(hdrs)):
             cell = tbl[0, j]
             cell.set_facecolor("#dce6f0")
             cell.set_text_props(fontweight="bold", color="#1a1a2e")
 
-        # body
+        # body row styling
         for i, row in enumerate(data, start=1):
             bg = _STATE_BG.get(row[tcol], WHITE)
             for j in range(len(hdrs)):
@@ -382,68 +377,37 @@ def _draw_styled_table(ax, conv_list, best_cut, n_init, u0, u0_bin):
                 elif "✗" in v:
                     oc.set_facecolor("#f7b89a")
 
-        return bottom
+        return table_bottom  # bottom edge of the table
 
-    y = 0.99
-    y = _section(
-        y,
-        "Per-trajectory convergence",
-        ["#", "Type", "Bits (s*)", "Cut", "✓", "Res."],
-        rows1,
-        tcol=1,
-        ocol=4,
-    ) - 0.04
-
-    y = _section(
-        y,
+    bottom = _section(
+        y_banner_top,
         "Summary — unique terminal states",
-        ["Type", "Bits", "Cut", "n", "%", "Mean res.", "→ Opt?"],
+        ["Bits", "Cut", "n", "%", "Mean res.", "→ Opt?"],
         rows2,
         tcol=0,
-        ocol=6,
-    ) - 0.02
+        ocol=5,
+    )
 
+    # ── status text ───────────────────────────────────────────────────────────
     diff = u0 - u0_bin
-    # u0 < u0_bin  =>  origin is unstable  =>  binarisation FAVOURED (good)
-    # u0 > u0_bin  =>  origin is stable    =>  network may stagnate at 0 (bad)
     origin_stable = diff > 0
     status = "origin STABLE — may stagnate ✗" if origin_stable else "origin UNSTABLE — binarises ✓"
     sc = C_ORANGE if origin_stable else C_GREEN
 
     ax.text(
-        0.5, max(y, 0.01),
+        0.5, bottom - GAP,
         rf"$u_0 = {u0:.4f}$ | "
         rf"$u_{{0,\mathrm{{bin}}}} = {u0_bin:.4f}$ | "
         rf"diff = {diff:+.4f} ({status})",
         transform=ax.transAxes,
         ha="center", va="top",
-        fontsize=8, color=sc,
+        fontsize=8.5, color=sc,
         bbox=dict(
             boxstyle="round,pad=0.35",
             facecolor="#f5f5f5",
             edgecolor=sc,
         ),
     )
-
-    legend_handles = [
-        mpatches.Patch(
-            facecolor=_STATE_BADGE[k],
-            edgecolor=GRAY,
-            label=k,
-        )
-        for k in _STATE_BADGE
-    ]
-    ax.legend(
-        handles=legend_handles,
-        loc="lower center",
-        bbox_to_anchor=(0.5, 0.0),
-        ncol=2,
-        fontsize=7.5,
-        framealpha=0.92,
-        facecolor=WHITE,
-        edgecolor=GRAY,
-    )
-
 
 # ── phase-dynamics drawing ────────────────────────────────────────────────────
 def _draw_phase(ax, sols, conv, u0, u0_bin, w_total, best_cut, n, n_init):
@@ -494,22 +458,6 @@ def _draw_phase(ax, sols, conv, u0, u0_bin, w_total, best_cut, n, n_init):
         color=C_BIN_OK if all_b else C_UNSTABLE,
         bbox=dict(
             boxstyle="round,pad=0.3",
-            facecolor=WHITE,
-            edgecolor=GRAY,
-        ),
-    )
-
-    ax.text(
-        0.01, 0.97,
-        rf"$u_0={u0:.4f}$ | "
-        rf"$u_{{0,\mathrm{{bin}}}}={u0_bin:.4f}$ | "
-        rf"$W_{{\mathrm{{tot}}}}={w_total:.1f}$ | "
-        rf"best cut={best_cut:.1f}",
-        transform=ax.transAxes,
-        ha="left", va="top",
-        fontsize=9.5,
-        bbox=dict(
-            boxstyle="round,pad=0.28",
             facecolor=WHITE,
             edgecolor=GRAY,
         ),
@@ -582,10 +530,9 @@ class SharedMuController:
 
 # ── Figure 1: phase dynamics + table ──────────────────────────────────────────
 def make_phase_figure(ctrl, results, eq_data, args):
-    fig = plt.figure("Phase Dynamics", figsize=(22, 9.5), facecolor=WHITE)
+    fig = plt.figure("Phase Dynamics", figsize=(13, 9.5), facecolor=WHITE)
 
-    ax_phase = fig.add_axes((0.04, 0.13, 0.54, 0.78))
-    ax_table = fig.add_axes((0.61, 0.13, 0.38, 0.78))
+    ax_phase = fig.add_axes((0.07, 0.13, 0.88, 0.78))
     ax_slider = fig.add_axes((0.10, 0.035, 0.80, 0.030))
 
     u0_arr = ctrl.u0_arr
@@ -624,15 +571,65 @@ def make_phase_figure(ctrl, results, eq_data, args):
             u0, eq_data["u0_bin"], eq_data["w_total"],
             eq_data["best_cut"], eq_data["n"], args.n_init,
         )
+        fig.suptitle(
+            rf"Continuous Hopfield Dynamics",
+            fontweight="bold",
+            y=0.99,
+        )
+        fig.canvas.draw_idle()
+
+    ctrl.register_slider(slider)
+    ctrl.register_updater(update)
+    fig.slider = slider
+
+    return fig
+
+
+# ── Figure 1b: equilibrium table ──────────────────────────────────────────────
+def make_table_figure(ctrl, results, eq_data, args):
+    fig = plt.figure("Equilibrium Table", figsize=(11, 9.5), facecolor=WHITE)
+
+    ax_table = fig.add_axes((0.03, 0.13, 0.94, 0.78))
+    ax_slider = fig.add_axes((0.10, 0.035, 0.80, 0.030))
+
+    u0_arr = ctrl.u0_arr
+
+    slider = Slider(
+        ax_slider, "$u_0$",
+        float(u0_arr[0]),
+        float(u0_arr[-1]),
+        valinit=float(u0_arr[ctrl.index]),
+        valstep=u0_arr,
+        color=C_STABLE,
+        track_color=LIGHT,
+    )
+
+    ax_slider.axvline(eq_data["u0_bin"], color=C_U0BIN, linewidth=2.5, zorder=5)
+    rel = float(
+        np.clip(
+            (eq_data["u0_bin"] - u0_arr[0]) / (u0_arr[-1] - u0_arr[0] + 1e-12),
+            0,
+            1,
+        )
+    )
+    ax_slider.text(
+        rel, 1.05,
+        rf"$u_{{0,\mathrm{{bin}}}}={eq_data['u0_bin']:.3f}$",
+        transform=ax_slider.transAxes,
+        ha="center", va="bottom",
+        fontsize=8.5, color=C_U0BIN,
+    )
+
+    def update(idx):
+        rec = results[idx]
+        u0 = rec["u0"]
         _draw_styled_table(
             ax_table, rec["conv"], eq_data["best_cut"],
             args.n_init, u0, eq_data["u0_bin"],
         )
         fig.suptitle(
-            rf"Continuous Hopfield $u_0$-slider | {args.graph} | "
-            rf"$N={eq_data['n']}$, $2^N={eq_data['total']}$ eq | "
-            rf"$u_{{0,\mathrm{{bin}}}}={eq_data['u0_bin']:.4f}$ | "
-            rf"best cut={eq_data['best_cut']:.1f}",
+            rf"Equilibrium Table | "
+            rf"$N={eq_data['n']}$, $2^N={eq_data['total']}$ equilibria",
             fontweight="bold",
             y=0.99,
         )
@@ -702,9 +699,7 @@ def make_spectrum_figure(ctrl, eq_data, W, args):
         xlim=(0.5, n + 0.5),
         ylim=(ev_W[0] - margin, ev_W[-1] + ctrl.u0_arr[-1] + margin),
         title=(
-            r"Hessian $H(0) = W + u_0 I$ spectrum at Origin ($s=0$)" "\n"
-            r"$\lambda_{\min}(H) > 0 \Leftrightarrow u_0 > u_{0,\mathrm{bin}}$"
-            " — origin stable (BAD: network stagnates)"
+            r"Hessian spectrum at Origin ($s=0$)"
         ),
     )
 
@@ -741,8 +736,7 @@ def make_spectrum_figure(ctrl, eq_data, W, args):
         xlim=(0.5, n + 0.5),
         ylim=(-1, ev_W[-1] + ctrl.u0_arr[-1] * 20),
         title=(
-            r"Hessian $H(\tilde{s}^*)$ at continuous fixed points near binary corners" "\n"
-            r"$\tilde{s}^*$ found via $s \leftarrow \tanh(-Ws/u_0)$ (fixed-point iteration)"
+            r"Hessian spectrum $H(\tilde{s}^*)$ at continuous fixed points $\tilde{s}^*$"
         ),
     )
     ax_eq.legend(fontsize=8.5, loc="lower right")
@@ -819,9 +813,7 @@ def make_spectrum_figure(ctrl, eq_data, W, args):
         ax_eq.set_ylim(-1, min(max_ev + 2, 100))
 
         fig.suptitle(
-            rf"Continuous Hopfield Hessian Spectra | "
-            rf"$u_{{0,\mathrm{{bin}}}}={eq_data['u0_bin']:.4f}$ | "
-            rf"$u_0={u0:.4f}$",
+            rf"Continuous Hopfield Hessian Spectra",
             fontweight="bold",
             y=0.98,
         )
@@ -879,6 +871,7 @@ def main():
 
     ctrl = SharedMuController(u0_list)
     make_phase_figure(ctrl, results, eq_data, args)
+    make_table_figure(ctrl, results, eq_data, args)
     make_spectrum_figure(ctrl, eq_data, W, args)
     ctrl.trigger()
     print("Windows launched. Moving either slider syncs the other.")
