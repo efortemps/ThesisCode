@@ -224,16 +224,21 @@ def identify_convergence(sol, W, u0, best_cut, bintol=0.05):
     )
 
 
-def precompute(u0_list, W, u_inits, t_end, n_points, best_cut):
+def precompute(u0_list, W, s_inits, t_end, n_points, best_cut):
     """
     Precompute trajectories and convergence info for all u0 in u0_list.
+
+    s_inits holds the fixed initial conditions in s-space ~ U(-1, 1).
+    For each u0 they are converted to u-space via u = u0 * arctanh(s),
+    so the starting activation is identical across the entire u0 sweep.
     """
     results = []
     print(f"Pre-computing {len(u0_list)} u0 values...")
     for u0 in u0_list:
         print(f" u0={u0:.4f}", end="\r", flush=True)
-        sols = [simulate_trajectory(W, u0, u0_init, t_end, n_points)
-                for u0_init in u_inits]
+        u_inits = [u0 * np.arctanh(s) for s in s_inits]
+        sols = [simulate_trajectory(W, u0, u_init, t_end, n_points)
+                for u_init in u_inits]
         conv = [identify_convergence(s, W, u0, best_cut) for s in sols]
         results.append(dict(u0=u0, sols=sols, conv=conv))
     print(" 100.0% done.")
@@ -683,17 +688,6 @@ def make_spectrum_figure(ctrl, eq_data, W, args):
         color=C_MIXED,
         arrowprops=dict(arrowstyle="->", color=C_MIXED, lw=0.9),
     )
-    orig_text = ax_orig.text(
-        0.98, 0.98, "",
-        transform=ax_orig.transAxes,
-        ha="right", va="top",
-        fontsize=9.5,
-        bbox=dict(
-            boxstyle="round,pad=0.35",
-            facecolor=WHITE,
-            edgecolor=GRAY,
-        ),
-    )
 
     ax_orig.set(
         xlim=(0.5, n + 0.5),
@@ -777,14 +771,6 @@ def make_spectrum_figure(ctrl, eq_data, W, args):
         ann_orig.set_position((1.6, ev_orig[0] + margin))
         ann_orig.set_text(rf"$\lambda_{{min}}={ev_orig[0]:.3f}$")
 
-        status = "STABLE — stagnates ✗" if ev_orig[0] > 0 else "UNSTABLE — binarises ✓"
-        orig_text.set_text(
-            rf"Origin $s=0$ at $u_0 = {u0:.4f}$" "\n"
-            rf"$\lambda_{{\min}}(H) = {ev_orig[0]:.4f}$" "\n"
-            rf"Status: {status}" "\n"
-            rf"$u_{{0,\mathrm{{bin}}}} = {eq_data['u0_bin']:.4f}$"
-        )
-
         # equilibria
         max_ev = 2.0
         for k_r, (eq, lbl, col, ls) in enumerate(reps):
@@ -810,13 +796,7 @@ def make_spectrum_figure(ctrl, eq_data, W, args):
             )
             max_ev = max(max_ev, ev_H[-1])
 
-        ax_eq.set_ylim(-1, min(max_ev + 2, 100))
-
-        fig.suptitle(
-            rf"Continuous Hopfield Hessian Spectra",
-            fontweight="bold",
-            y=0.98,
-        )
+        ax_eq.set_ylim(-1, max_ev + 2)
         fig.canvas.draw_idle()
 
     ctrl.register_slider(slider)
@@ -859,12 +839,20 @@ def main():
     print(f" u0 sweep: [{args.u0_min:.4f}, {u0_max:.4f}] ({args.n_u0} steps)")
 
     rng = np.random.default_rng(args.seed)
-    # initial conditions: uniform in [-1,1]^n as requested
-    u_inits = [rng.uniform(-1.0, 1.0, n) for _ in range(args.n_init)]
-    print(f" {args.n_init} initial conditions sampled from uniform(-1, 1)")
+    # Sample initial conditions in s-space ~ U(-1, 1), clipped to keep
+    # arctanh finite.  precompute() converts to u-space per u0 via
+    # u = u0 * arctanh(s), so the activation starting point is identical
+    # across the entire u0 sweep.
+    S_CLIP = 1.0 - 1e-3
+    s_inits = [
+        np.clip(rng.uniform(-1.0, 1.0, n), -S_CLIP, S_CLIP)
+        for _ in range(args.n_init)
+    ]
+    print(f" {args.n_init} initial conditions sampled from U(-1, 1) in s-space"
+          f" (clipped to ±{S_CLIP})")
 
     results = precompute(
-        u0_list, W, u_inits,
+        u0_list, W, s_inits,
         args.t_end, args.n_points,
         eq_data["best_cut"],
     )
