@@ -394,39 +394,32 @@ def print_summary(results: list, u0_values: list, args):
           f"=1.0: {int(np.sum(approx >= 1-1e-6))}/{n_graphs}")
     print(f"{'='*70}\n")
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Figure 1 — Per-u0 histograms + CDFs
-# ═══════════════════════════════════════════════════════════════════════════════
-
 def make_figure1(results: list, u0_values: list, args) -> plt.Figure:
     """
-    2 rows × n_u0 columns  +  one summary CDF column.
-
-    Row 0: per-u0 histogram of n_opt (# ICs reaching global opt)
-    Row 1: per-u0 CDF of n_opt
-
-    Each column corresponds to one u0 value.  A final column overlays all
-    CDFs for direct comparison.
+    1 row × (n_u0 ) columns.
+    Row 0: per-u0 histogram of n_opt.
+    CDF row removed.
     """
     n_init   = args.n_init
-    n_graphs = len(results)
     n_u0     = len(u0_values)
-    n_cols   = n_u0 + 1   # +1 for the overlay CDF
+    n_cols   = n_u0
 
-    fig = plt.figure(figsize=(4.2 * n_cols, 10), facecolor=WHITE)
-    gs  = gridspec.GridSpec(2, n_cols, figure=fig,
-                            hspace=0.55, wspace=0.35,
-                            left=0.05, right=0.98, top=0.91, bottom=0.08)
+    fig = plt.figure(figsize=(4.2 * n_cols, 8), facecolor=WHITE)
+    gs  = gridspec.GridSpec(1, n_cols, figure=fig,
+                            wspace=0.38,
+                            left=0.05, right=0.98, top=0.88, bottom=0.14)
 
     bins   = np.arange(-0.5, n_init + 1.5, 1.0)
     x_vals = np.arange(n_init + 1)
+
+    # Show only every other tick to avoid overlap when n_init is large
+    tick_step = max(1, n_init // 5)
+    sparse_ticks = x_vals[::tick_step]
 
     for col, (u0, col_c) in enumerate(zip(u0_values, _U0_COLOURS)):
         n_opt = np.array([r["n_opt_per_u0"][u0] for r in results])
         counts, _ = np.histogram(n_opt, bins=bins)
 
-        # ── Row 0: histogram ─────────────────────────────────────────────────
         ax0 = fig.add_subplot(gs[0, col])
         bar_colours = [C_RED if k == 0 else
                        (C_GREEN if k == n_init else col_c)
@@ -443,7 +436,9 @@ def make_figure1(results: list, u0_values: list, args) -> plt.Figure:
         ax0.axvline(n_opt.mean(), color=C_AMBER, linewidth=1.8,
                     linestyle="--", zorder=5,
                     label=f"mean={n_opt.mean():.2f}")
-        ax0.set_xticks(x_vals)
+        ax0.set_xticks(sparse_ticks)
+        ax0.set_xticklabels([str(t) for t in sparse_ticks],
+                             fontsize=8.5, rotation=45, ha="right")
         ax0.set_xlim(-0.7, n_init + 0.7)
         ax0.set_ylim(0, max(counts.max(), 1) * 1.30)
         ax0.legend(fontsize=7.5, loc="upper left")
@@ -452,140 +447,28 @@ def make_figure1(results: list, u0_values: list, args) -> plt.Figure:
                   xlabel=f"# ICs → opt  (/{n_init})",
                   ylabel="# graphs")
 
-    # ── Row 1: CDFs ──────────────────────────────────────────────────────────
-    ax_ov = fig.add_subplot(gs[1, n_u0])   # overlay CDF (last column, row 1)
-    ax_ov.set_facecolor(WHITE)
-    for sp in ax_ov.spines.values():
-        sp.set_edgecolor(BLACK); sp.set_linewidth(0.8)
-    ax_ov.grid(True, color=LIGHT, linewidth=0.5)
-
-    for col, (u0, col_c) in enumerate(zip(u0_values, _U0_COLOURS)):
-        n_opt = np.array([r["n_opt_per_u0"][u0] for r in results])
-        cdf   = np.array([np.mean(n_opt >= k) for k in x_vals])
-
-        # ── per-u0 CDF panel ──────────────────────────────────────────────
-        ax1 = fig.add_subplot(gs[1, col])
-        ax1.step(x_vals, cdf, where="post", color=col_c, linewidth=2.0,
-                 label="P(# ICs ≥ k)")
-        ax1.fill_between(x_vals, cdf, step="post", alpha=0.15, color=col_c)
-        ax1.axhline(1.0, color=GRAY, linewidth=0.8, linestyle="--")
-        ax1.axvline(1, color=C_GREEN, linewidth=1.3, linestyle=":",
-                    label=f"P(≥1) = {cdf[1]:.2f}")
-        ax1.set_xticks(x_vals)
-        ax1.set_xlim(-0.3, n_init + 0.3)
-        ax1.set_ylim(-0.02, 1.10)
-        ax1.text(0.97, 0.06,
-                 f"P(≥1) = {cdf[1]*100:.1f}%\n"
-                 f"P(all) = {cdf[n_init]*100:.1f}%",
-                 transform=ax1.transAxes, ha="right", va="bottom",
-                 fontsize=8.5,
-                 bbox=dict(boxstyle="round,pad=0.3", facecolor=WHITE,
-                           edgecolor=GRAY, alpha=0.92))
-        ax1.legend(fontsize=7.5)
-        _ax_style(ax1, title=f"CDF  $u_0 = {u0}$",
-                  xlabel="k  (min # ICs → opt)", ylabel="P(# ICs ≥ k)")
-
-        # Overlay on the shared comparison panel
-        ax_ov.step(x_vals, cdf, where="post", color=col_c, linewidth=2.0,
-                   label=f"$u_0={u0}$", zorder=3)
-
-    ax_ov.axhline(1.0, color=GRAY, linewidth=0.8, linestyle="--")
-    ax_ov.set_xticks(x_vals)
-    ax_ov.set_xlim(-0.3, n_init + 0.3)
-    ax_ov.set_ylim(-0.02, 1.10)
-    ax_ov.legend(fontsize=8, loc="lower left")
-    ax_ov.set_title("CDF comparison\n(all $u_0$ values overlaid)",
-                    color=BLACK, fontsize=10, fontweight="bold", pad=5)
-    ax_ov.set_xlabel("k  (min # ICs → opt)", color=BLACK, fontsize=10)
-    ax_ov.set_ylabel("P(# ICs ≥ k)", color=BLACK, fontsize=10)
-    ax_ov.tick_params(colors=BLACK, labelsize=9)
-
-    # Top row: overlay histogram (last column, row 0)
-    ax_oh = fig.add_subplot(gs[0, n_u0])
-    ax_oh.set_facecolor(WHITE)
-    for sp in ax_oh.spines.values():
-        sp.set_edgecolor(BLACK); sp.set_linewidth(0.8)
-    ax_oh.grid(True, color=LIGHT, linewidth=0.5)
-    for u0, col_c in zip(u0_values, _U0_COLOURS):
-        n_opt = np.array([r["n_opt_per_u0"][u0] for r in results])
-        ax_oh.plot(x_vals, [np.mean(n_opt >= k) for k in x_vals],
-                   color=col_c, linewidth=1.8, marker="o", markersize=4,
-                   label=f"$u_0={u0}$")
-    ax_oh.axhline(1.0, color=GRAY, linewidth=0.8, linestyle="--")
-    ax_oh.set_xticks(x_vals); ax_oh.set_xlim(-0.3, n_init + 0.3)
-    ax_oh.set_ylim(-0.02, 1.10)
-    ax_oh.legend(fontsize=7.5)
-    ax_oh.set_title("P(# ICs ≥ k) for all $u_0$",
-                    color=BLACK, fontsize=10, fontweight="bold", pad=5)
-    ax_oh.set_xlabel("k", color=BLACK, fontsize=10)
-    ax_oh.set_ylabel("fraction of graphs", color=BLACK, fontsize=10)
-    ax_oh.tick_params(colors=BLACK, labelsize=9)
-
     fig.suptitle(
-        f"HNN u₀ Sweep — Conjecture Test  |  $N={args.N}$,  $p_1={args.p1}$,  "
-        f"{n_graphs} ER graphs  |  $n_{{\\rm init}}={n_init}$  |  "
-        f"$2^N={2**args.N}$ brute-force global opt",
+        f"HNN $u_0$ Sweep — Histogram Summary",
         color=BLACK, fontsize=11, fontweight="bold")
     return fig
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Figure 3 — Sweep summary  (2 original panels + 1 new sweep-profile panel)
-#            Note: the mu_bin distribution panel is REMOVED (no equivalent)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def make_figure3(results: list, u0_values: list, args) -> plt.Figure:
-    """
-    Three panels  (the mu_bin distribution panel from the OIM version is absent):
-
-    (a) Approximation ratio box-plots per u0
-        = (best cut found at u0) / (true global optimum)
-        Shows whether each u0 reliably finds the optimum.
-
-    (b) Success-fraction bar chart per u0
-        Three grouped bars per u0: % graphs with 0 ICs, ≥1 IC, all ICs at opt.
-
-    (c) Mean n_opt ± std per u0  (line + shaded band)
-        Directly shows the sweep profile — is there a "sweet spot" u0?
-    """
     n_init   = args.n_init
     n_graphs = len(results)
 
-    fig, axes = plt.subplots(1, 3, figsize=(17, 5.5), facecolor=WHITE)
-    fig.subplots_adjust(wspace=0.38, left=0.07, right=0.97,
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5.5), facecolor=WHITE)
+    fig.subplots_adjust(wspace=0.38, left=0.08, right=0.97,
                         top=0.87, bottom=0.13)
 
     x_pos = np.arange(len(u0_values))
 
-    # ── (a) Approximation ratio box-plots ─────────────────────────────────────
+    # ── (a) Success-fraction grouped bar chart ────────────────────────────────
     ax = axes[0]
-    box_data = []
-    for u0 in u0_values:
-        ratios = [max(r["per_u0"][u0]["cuts"]) / max(r["best_cut"], 1e-9)
-                  for r in results]
-        box_data.append(ratios)
-
-    bp = ax.boxplot(box_data, positions=x_pos, patch_artist=True,
-                    medianprops=dict(color=BLACK, linewidth=1.5),
-                    whiskerprops=dict(color=GRAY),
-                    capprops=dict(color=GRAY), widths=0.5)
-    for patch, col in zip(bp["boxes"], _U0_COLOURS):
-        patch.set_facecolor(col); patch.set_alpha(0.68)
-
-    ax.axhline(1.0, color=C_RED, linewidth=1.5, linestyle=":",
-               label="global opt (= 1.0)")
-    ax.set_xticks(x_pos)
-    ax.set_xticklabels([f"$u_0={v}$" for v in u0_values], fontsize=8.5,
-                        rotation=20)
-    ax.legend(fontsize=8.5)
-    _ax_style(ax,
-              title=("Approximation ratio: best cut at each $u_0$ / global opt\n"
-                     f"over {n_graphs} graphs  (box = IQR, whiskers = 10/90th pct)"),
-              xlabel="$u_0$",
-              ylabel="best cut / true global opt")
-
-    # ── (b) Success-fraction grouped bar chart ────────────────────────────────
-    ax = axes[1]
     frac_none = [float(np.mean(
         [r["n_opt_per_u0"][u0] == 0 for r in results])) * 100
         for u0 in u0_values]
@@ -604,11 +487,8 @@ def make_figure3(results: list, u0_values: list, args) -> plt.Figure:
     ax.bar(x_pos + w, frac_all,  width=w, color=C_GREEN,  alpha=0.75,
            edgecolor=BLACK, linewidth=0.5, label=f"all {n_init} ICs hit opt")
 
-    # Value labels on top of bars
     for pos, f_none, f_any, f_all in zip(x_pos, frac_none, frac_any, frac_all):
-        for offset, val, col in [(-w, f_none, C_RED),
-                                   (0, f_any, C_BLUE),
-                                   (w, f_all, C_GREEN)]:
+        for offset, val in [(-w, f_none), (0, f_any), (w, f_all)]:
             if val > 2:
                 ax.text(pos + offset, val + 1, f"{val:.0f}",
                         ha="center", va="bottom", fontsize=7.5,
@@ -621,13 +501,12 @@ def make_figure3(results: list, u0_values: list, args) -> plt.Figure:
     ax.axhline(100, color=GRAY, linewidth=0.8, linestyle="--", alpha=0.6)
     ax.legend(fontsize=8.5)
     _ax_style(ax,
-              title=(f"Success fractions per $u_0$\n"
-                     f"({n_graphs} graphs, {n_init} ICs each)"),
+              title=f"Success fractions per $u_0$\nover {n_graphs} graphs",
               xlabel="$u_0$",
               ylabel="% of graphs")
 
-    # ── (c) Mean n_opt ± std vs u0  (sweep profile) ───────────────────────────
-    ax = axes[2]
+    # ── (b) Mean n_opt ± std vs u0  (sweep profile) ───────────────────────────
+    ax = axes[1]
     means = np.array([np.mean([r["n_opt_per_u0"][u0] for r in results])
                       for u0 in u0_values])
     stds  = np.array([np.std ([r["n_opt_per_u0"][u0] for r in results])
@@ -640,7 +519,6 @@ def make_figure3(results: list, u0_values: list, args) -> plt.Figure:
     ax.errorbar(x_pos, means, yerr=stds, fmt="none",
                 ecolor=C_BLUE, elinewidth=1.2, capsize=4, capthick=1.2)
 
-    # Highlight the u0 with highest mean
     best_col = int(np.argmax(means))
     ax.scatter([x_pos[best_col]], [means[best_col]],
                color=C_GREEN, s=100, zorder=5, edgecolors=BLACK,
@@ -655,14 +533,12 @@ def make_figure3(results: list, u0_values: list, args) -> plt.Figure:
                label=f"n_init = {n_init}")
     ax.legend(fontsize=8.5)
     _ax_style(ax,
-              title=("Mean # ICs → global opt ± std\n"
-                     "Sweep profile: is there a best $u_0$?"),
+              title="Mean # ICs → global opt",
               xlabel="$u_0$",
               ylabel=f"mean # ICs → global opt  (/{n_init})")
 
     fig.suptitle(
-        f"HNN Sweep Summary  |  $N={args.N}$,  $p_1={args.p1}$,  "
-        f"{n_graphs} ER graphs  |  $n_{{\\rm init}}={n_init}$",
+        "HNN Sweep Summary",
         color=BLACK, fontsize=11, fontweight="bold")
     return fig
 
@@ -941,7 +817,7 @@ def main():
     parser.add_argument("--n_graphs",   type=int,   default=20)
     parser.add_argument("--p1",         type=float, default=0.5)
     parser.add_argument("--u0_values",  type=float, nargs="+",
-                        default=[0.01, 0.1, 1.0, 2.0, 5.0])
+                        default=[0.0001,0.001, 0.01, 0.1, 1.0, 2.0, 5.0])
     parser.add_argument("--n_init",     type=int,   default=10)
     parser.add_argument("--t_end",      type=float, default=80.0)
     parser.add_argument("--n_points",   type=int,   default=400)
