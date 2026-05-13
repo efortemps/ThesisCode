@@ -614,11 +614,8 @@ def make_figure3(args, n, W, eq_data, conv_results):
 def make_figure4(args, n, edges, eq_data, sweep_data):
     rows       = eq_data["rows"]
     mu_bin     = eq_data["mu_bin"]
-    w_total    = eq_data["w_total"]
     best_cut   = eq_data["best_cut"]
     mu_vals    = sweep_data["mu_vals"]
-    n_eq       = eq_data["total"]
-    current_mu = eq_data["mu"]
 
     lmax_D_all = np.array([r["lmax_D"] for r in rows])
     H_all      = np.array([r["H"]      for r in rows])
@@ -630,72 +627,29 @@ def make_figure4(args, n, edges, eq_data, sweep_data):
     avg_cut_per_lmax = np.array([cut_all[inverse == k].mean()
                                   for k in range(len(unique_lmax))])
 
-    cmap_cut = plt.get_cmap("RdYlGn")
-    norm_cut = mcolors.Normalize(vmin=0, vmax=best_cut)
-
     fig = plt.figure(figsize=(18, 12), facecolor=WHITE)
-    gs  = gridspec.GridSpec(2, 1, figure=fig,
-                            height_ratios=[0.70, 1.30], hspace=0.45,
-                            left=0.06, right=0.96, top=0.92, bottom=0.08)
-    ax_lmbar = fig.add_subplot(gs[0])
-    ax_bif_H = fig.add_subplot(gs[1])
+    ax_bif_H = fig.add_subplot(111)
 
-    # ── bar chart ─────────────────────────────────────────────────────────────
-    sorted_rows = sorted(rows, key=lambda r: r["lmax_D"])
-    lmax_arr    = np.array([r["lmax_D"] for r in sorted_rows])
-    cut_arr_s   = np.array([r["cut"]    for r in sorted_rows])
-    bar_cols    = [cmap_cut(norm_cut(c)) for c in cut_arr_s]
-
-    ax_lmbar.bar(np.arange(n_eq), lmax_arr,
-                 color=bar_cols, width=1.0, edgecolor="none", zorder=2)
-    ax_lmbar.axhline(0,          color=BLACK,     linewidth=0.9,  zorder=3)
-    ax_lmbar.axhline(mu_bin,     color=C_STABLE,  linewidth=2.0,
-                     linestyle="--", zorder=5,
-                     label=f"$\\mu_{{\\rm bin}} = {mu_bin:.3f}$")
-    ax_lmbar.axhline(current_mu, color=C_MU_LINE, linewidth=2.0,
-                     linestyle="--", zorder=6,
-                     label=f"current $\\mu = {current_mu:.3f}$")
-
-    sm_bar = plt.cm.ScalarMappable(cmap=cmap_cut, norm=norm_cut)
-    sm_bar.set_array([])
-    cb_bar = fig.colorbar(sm_bar, ax=ax_lmbar, fraction=0.015, pad=0.01)
-    cb_bar.set_label("Cut value", fontsize=10)
-    cb_bar.ax.tick_params(labelsize=9)
-    cb_bar.outline.set_edgecolor(BLACK)
-
-    ax_lmbar.set_xlim(-1, n_eq)
-    ax_lmbar.legend(fontsize=10, loc="upper left")
-    _ax_style(ax_lmbar,
-              title=(f"$\\lambda_{{\\max}}(D(\\phi^*))$ for all $2^N={n_eq}$ equilibria  "
-                     f"(sorted)  |  bar colour = cut quality  |  "
-                     f"stable at current $\\mu$: {eq_data['n_stable']}/{n_eq}"),
-              xlabel="Equilibrium index",
-              ylabel="$\\lambda_{\\max}(D(\\phi^*))$")
+    # ── Tighten margins so axes fill the figure ───────────────────────────────
+    fig.subplots_adjust(left=0.07, right=0.90, top=0.93, bottom=0.08)
 
     # ── bifurcation diagram (Hessian) ─────────────────────────────────────────
     norm_bif = mcolors.Normalize(vmin=0, vmax=best_cut)
     cmap_bif = plt.get_cmap("RdYlGn")
 
-    # For A: max eigenvalue of A is lambda_max(D) - mu.
-    # For H: H = -2A. Therefore the min eigenvalue of H is 2*mu - 2*lambda_max(D).
-
     bif_lo_A = unique_lmax.min() - mu_vals.max() - 0.5
     bif_hi_A = unique_lmax.max() + 0.5
-
     bif_lo_H = -2.0 * bif_hi_A
     bif_hi_H = -2.0 * bif_lo_A
 
     ax_bif_H.fill_between(mu_vals,
                         0, np.maximum(-2.0 * sweep_data["lmax_A_min_mu"], 0),
                         color=C_STABLE,   alpha=0.12, zorder=0)
-    ax_bif_H.fill_between(mu_vals, 
+    ax_bif_H.fill_between(mu_vals,
                         np.minimum(-2.0 * sweep_data["lmax_A_max_mu"], 0), 0,
                         color=C_UNSTABLE, alpha=0.10, zorder=0)
     ax_bif_H.axhline(0, color=BLACK, linewidth=1.5, zorder=5,
                    label="$\\lambda_{\\min}(H)=0$  (stability boundary)")
-    ax_bif_H.axvline(current_mu, color=C_MU_LINE, linewidth=1.8,
-                   linestyle="--", zorder=6,
-                   label=f"current $\\mu={current_mu:.3f}$")
     ax_bif_H.axvline(mu_bin, color=BLACK, linewidth=1.8,
                    linestyle=":", zorder=7,
                    label=f"$\\mu_{{\\rm bin}}={mu_bin:.3f}$")
@@ -707,47 +661,26 @@ def make_figure4(args, n, edges, eq_data, sweep_data):
             zip(unique_lmax, counts_lmax, avg_H_per_lmax, avg_cut_per_lmax)):
         c  = cmap_bif(norm_bif(cut_mean))
         lw = 0.8 + 0.55 * np.log1p(cnt / 2.0)
-        # Plot lambda_min(H) = 2 * mu - 2 * lm
         ax_bif_H.plot(mu_vals, 2.0 * mu_vals - 2.0 * lm, color=c, linewidth=lw, alpha=0.85)
         mu_star = lm
         if mu_vals[0] <= mu_star <= mu_vals[-1]:
             ax_bif_H.scatter([mu_star], [0.0], color=c, s=55, zorder=7,
                            edgecolors=BLACK, linewidths=0.7)
-            if idx == 0 or idx == 1 or idx % 5 == 0:
-                ax_bif_H.annotate(
-                    f"$\\mu^*={mu_star:.2f}$\n"
-                    f"$\\bar{{H}}={H_mean:.1f}$\n"
-                    f"cut$={cut_mean:.1f}$  $\\times{cnt}$",
-                    xy=(mu_star, 0.0),
-                    xytext=(mu_star + (mu_vals[-1] - mu_vals[0]) * 0.012,
-                            ann_y_vals_H[idx]),
-                    fontsize=7, color=c, zorder=8,
-                    arrowprops=dict(arrowstyle="->", color=c, lw=0.65,
-                                    shrinkA=2, shrinkB=2))
 
-    cb_bif_H = fig.colorbar(sm_bar, ax=ax_bif_H, fraction=0.012, pad=0.01)
-    cb_bif_H.set_label("Mean cut at $\\mu^*$", fontsize=10)
-    cb_bif_H.ax.tick_params(labelsize=9)
-    cb_bif_H.outline.set_edgecolor(BLACK)
+    # ── Colorbar ──────────────────────────────────────────────────────────────
+    sm = plt.cm.ScalarMappable(cmap=cmap_bif, norm=norm_bif)
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=ax_bif_H, pad=0.02, fraction=0.03, aspect=35)
+    cbar.set_label("Average cut value", fontsize=11)
+    cbar.ax.tick_params(labelsize=9)
 
     ax_bif_H.set_xlim(mu_vals[0], mu_vals[-1])
     ax_bif_H.set_ylim(bif_lo_H, bif_hi_H)
     ax_bif_H.legend(fontsize=10, loc="lower right", framealpha=0.93)
-    ax_bif_H.text(0.01, 0.96, "← stable (positive definite)",   transform=ax_bif_H.transAxes,
-                ha="left", va="top", fontsize=10, color=C_STABLE)
-    ax_bif_H.text(0.01, 0.04, "← unstable", transform=ax_bif_H.transAxes,
-                ha="left", fontsize=10, color=C_UNSTABLE)
     _ax_style(ax_bif_H,
               title=("Minimum Eigenvalue Analysis of Hessian $H(\\theta)$"),
               xlabel="$\\mu$",
               ylabel="$\\lambda_{\\min}(H(\\theta))$")
-
-    fig.suptitle(
-        f"OIM Hessian Bifurcation Analysis  |  {args.graph}  |  "
-        f"$N={n}$,  $|E|={len(edges)}$,  $2^N={n_eq}$ equilibria  |  "
-        f"$\\mu_{{\\rm bin}}={mu_bin:.4f}$  |  "
-        f"Best cut $={best_cut:.1f}$,  $W_{{\\rm tot}}={w_total:.1f}$",
-        color=BLACK, fontsize=12, fontweight="bold")
     return fig
 
 def main():
