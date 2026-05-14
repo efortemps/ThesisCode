@@ -247,7 +247,6 @@ def pick_representatives(rows):
         b = "".join(str(x) for x in r["bits"])
         return (
             f"{tag}: $[{b}]$  "
-            f"$\\lambda_{{max}}={r['lmax_D']:.3f}$  "
             f"$H={r['H']:.1f}$  cut$={r['cut']:.1f}$"
         )
 
@@ -356,7 +355,7 @@ def _draw_styled_table(ax, conv_list, best_cut, n_init, mu, mu_bin):
             title_txt,
             transform=ax.transAxes,
             ha="center", va="center",
-            fontsize=8.5, fontweight="bold", color=WHITE, zorder=5
+            fontsize=11, fontweight="bold", color=WHITE, zorder=5
         )
 
         y_cursor -= th
@@ -365,7 +364,7 @@ def _draw_styled_table(ax, conv_list, best_cut, n_init, mu, mu_bin):
 
         tbl = ax.table(cellText=data_rows, colLabels=col_labels, bbox=bbox, cellLoc="center")
         tbl.auto_set_font_size(False)
-        tbl.set_fontsize(7.8)
+        tbl.set_fontsize(10)
 
         for j in range(nc):
             cell = tbl[0, j]
@@ -390,7 +389,7 @@ def _draw_styled_table(ax, conv_list, best_cut, n_init, mu, mu_bin):
             bc.set_facecolor(_badge(stype))
             bc.get_text().set_color(WHITE)
             bc.get_text().set_fontweight("bold")
-            bc.get_text().set_fontsize(7.0)
+            bc.get_text().set_fontsize(11)
 
             if opt_col_idx is not None:
                 oc = tbl[i, opt_col_idx]
@@ -407,10 +406,7 @@ def _draw_styled_table(ax, conv_list, best_cut, n_init, mu, mu_bin):
         return y_cursor - table_h
 
     y = 0.99
-    y = _section(y, "Per-trajectory convergence", hdr1, rows1, type_col_idx=1, opt_col_idx=5)
-    y -= gap
     y = _section(y, "Summary — unique terminal states", hdr2, rows2, type_col_idx=0, opt_col_idx=7)
-    y -= gap * 0.5
 
     diff   = mu - mu_bin
     above  = diff > 0
@@ -424,7 +420,7 @@ def _draw_styled_table(ax, conv_list, best_cut, n_init, mu, mu_bin):
          f"$\\mu - \\mu_{{\\rm bin}} = {diff:+.4f}$   ({status})"),
         transform=ax.transAxes,
         ha="center", va="top",
-        fontsize=8, color=sc,
+        fontsize=11, color=sc,
         bbox=dict(
             boxstyle="round,pad=0.35",
             facecolor="#f5f5f5",
@@ -443,7 +439,7 @@ def _draw_styled_table(ax, conv_list, best_cut, n_init, mu, mu_bin):
         loc="lower center",
         bbox_to_anchor=(0.5, 0.0),
         ncol=3,
-        fontsize=7.5,
+        fontsize=10,
         facecolor=WHITE,
         edgecolor=GRAY,
         framealpha=0.92,
@@ -471,13 +467,13 @@ def _draw_phase(ax, sols, conv, mu, mu_bin, w_total, best_cut, n, n_init):
         ax.axhline(yref, color=GRAY, linestyle="--", linewidth=lw_r, alpha=0.75, zorder=1)
         if abs(abs(yref) - np.pi/2) < 1e-9:
             lbl = r"$\pi/2$" if yref > 0 else r"$-\pi/2$"
-            ax.text(t[-1]*0.995, yref+0.10, lbl, ha="right", va="bottom", fontsize=7.5, color=GRAY)
+            ax.text(t[-1]*0.995, yref+0.10, lbl, ha="right", va="bottom", fontsize=10, color=GRAY)
 
     ax.set_yticks(PI_TICKS)
-    ax.set_yticklabels(PI_LABELS, fontsize=10, color=BLACK)
+    ax.set_yticklabels(PI_LABELS, fontsize=13, color=BLACK)
     ax.set_ylim(-4.2, 4.2)
     ax.set_xlim(t[0], t[-1])
-    ax.tick_params(colors=BLACK, labelsize=9)
+    ax.tick_params(colors=BLACK, labelsize=12)
 
     n_bin  = sum(1 for c in conv if c["is_binary"])
     n_half = sum(1 for c in conv if c["state_type"] == "M1-half")
@@ -492,7 +488,7 @@ def _draw_phase(ax, sols, conv, mu, mu_bin, w_total, best_cut, n, n_init):
     ax.text(
         0.98, 0.97, status,
         transform=ax.transAxes, ha="right", va="top",
-        fontsize=9, fontweight="bold",
+        fontsize=12, fontweight="bold",
         color=C_BIN_OK if all_b else C_UNSTABLE,
         bbox=dict(boxstyle="round,pad=0.3", facecolor=WHITE, edgecolor=GRAY, alpha=0.95)
     )
@@ -501,24 +497,24 @@ def _draw_phase(ax, sols, conv, mu, mu_bin, w_total, best_cut, n, n_init):
         0.01, 0.97,
         f"$\\mu={mu:.4f}$ | $\\mu_{{\\rm bin}}={mu_bin:.4f}$ | "
         f"$W_{{\\rm tot}}={w_total:.1f}$ | best cut$={best_cut:.1f}$",
-        transform=ax.transAxes, ha="left", va="top", fontsize=9.5,
+        transform=ax.transAxes, ha="left", va="top", fontsize=12,
         bbox=dict(boxstyle="round,pad=0.28", facecolor=WHITE, edgecolor=GRAY, alpha=0.93)
     )
 
     ax.legend(
         handles=[mpatches.Patch(color=spin_cols[s%20], label=f"spin {s}") for s in range(n)],
         loc="lower right",
-        fontsize=7.5,
+        fontsize=10,
         ncol=max(1, n//5),
         framealpha=0.90
     )
-    ax.set_xlabel("time $t$", color=BLACK, fontsize=11)
-    ax.set_ylabel(r"phase $\theta_i(t)$ (rad)", color=BLACK, fontsize=11)
+    ax.set_xlabel("time $t$", color=BLACK, fontsize=14)
+    ax.set_ylabel(r"phase $\theta_i(t)$ (rad)", color=BLACK, fontsize=14)
     above_below = "above" if mu > mu_bin else "below"
     ax.set_title(
         f"Phase dynamics "
         f"{n_init} initial conditions",
-        color=BLACK, fontsize=11, pad=6
+        color=BLACK, fontsize=14, pad=6
     )
 
 
@@ -575,10 +571,15 @@ def make_phase_figure(ctrl, results, eq_data, args):
     n_eq     = eq_data["total"]
     n_init   = args.n_init
 
-    fig = plt.figure(figsize=(22, 9.5), facecolor=WHITE)
-    ax_phase  = fig.add_axes((0.04, 0.13, 0.54, 0.78))
-    ax_table  = fig.add_axes((0.61, 0.13, 0.38, 0.78))
-    ax_slider = fig.add_axes((0.10, 0.035, 0.80, 0.030))
+    # Figure for Phase Dynamics
+    fig_phase = plt.figure(figsize=(11, 9.5), facecolor=WHITE)
+    ax_phase = fig_phase.add_axes((0.10, 0.13, 0.80, 0.78))
+    ax_slider_phase = fig_phase.add_axes((0.10, 0.035, 0.80, 0.030))
+
+    # Figure for Convergence Table
+    fig_table = plt.figure(figsize=(11, 9.5), facecolor=WHITE)
+    ax_table = fig_table.add_axes((0.05, 0.13, 0.90, 0.78))
+    ax_slider_table = fig_table.add_axes((0.10, 0.035, 0.80, 0.030))
 
     for ax in (ax_phase, ax_table):
         ax.set_facecolor(WHITE)
@@ -586,23 +587,43 @@ def make_phase_figure(ctrl, results, eq_data, args):
             sp.set_edgecolor(BLACK)
             sp.set_linewidth(0.8)
 
-    slider = Slider(
-        ax_slider, "$\\mu$",
+    # Slider for Phase Figure
+    slider_phase = Slider(
+        ax_slider_phase, "$\\mu$",
         mu_arr[0], mu_arr[-1],
         valinit=float(mu_arr[ctrl.index]),
         valstep=mu_arr,
         color=C_STABLE,
         track_color=LIGHT
     )
-    ax_slider.set_facecolor(WHITE)
-    slider.label.set_color(BLACK)
-    slider.valtext.set_color(BLACK)
-    ax_slider.axvline(mu_bin, color=C_MUBIN, linewidth=2.5, zorder=5)
+    ax_slider_phase.set_facecolor(WHITE)
+    slider_phase.label.set_color(BLACK)
+    slider_phase.valtext.set_color(BLACK)
+    ax_slider_phase.axvline(mu_bin, color=C_MUBIN, linewidth=2.5, zorder=5)
     rel = float(np.clip((mu_bin - mu_arr[0]) / (mu_arr[-1] - mu_arr[0] + 1e-12), 0, 1))
-    ax_slider.text(
+    ax_slider_phase.text(
         rel, 1.05, f"$\\mu_{{\\rm bin}}={mu_bin:.3f}$",
-        transform=ax_slider.transAxes,
-        ha="center", va="bottom", fontsize=8.5, color=C_MUBIN
+        transform=ax_slider_phase.transAxes,
+        ha="center", va="bottom", fontsize=11, color=C_MUBIN
+    )
+
+    # Slider for Table Figure
+    slider_table = Slider(
+        ax_slider_table, "$\\mu$",
+        mu_arr[0], mu_arr[-1],
+        valinit=float(mu_arr[ctrl.index]),
+        valstep=mu_arr,
+        color=C_STABLE,
+        track_color=LIGHT
+    )
+    ax_slider_table.set_facecolor(WHITE)
+    slider_table.label.set_color(BLACK)
+    slider_table.valtext.set_color(BLACK)
+    ax_slider_table.axvline(mu_bin, color=C_MUBIN, linewidth=2.5, zorder=5)
+    ax_slider_table.text(
+        rel, 1.05, f"$\\mu_{{\\rm bin}}={mu_bin:.3f}$",
+        transform=ax_slider_table.transAxes,
+        ha="center", va="bottom", fontsize=11, color=C_MUBIN
     )
 
     def update(idx):
@@ -610,12 +631,17 @@ def make_phase_figure(ctrl, results, eq_data, args):
         mu = rec["mu"]
         _draw_phase(ax_phase, rec["sols"], rec["conv"], mu, mu_bin, w_total, best_cut, n, n_init)
         _draw_styled_table(ax_table, rec["conv"], best_cut, n_init, mu, mu_bin)
-        fig.canvas.draw_idle()
 
-    ctrl.register_slider(slider)
+        fig_phase.canvas.draw_idle()
+        fig_table.canvas.draw_idle()
+
+    ctrl.register_slider(slider_phase)
+    ctrl.register_slider(slider_table)
     ctrl.register_updater(update)
-    fig.slider = slider
-    return fig
+    fig_phase.slider = slider_phase
+    fig_table.slider = slider_table
+    return fig_phase, fig_table
+
 
 
 # ── Figure 2: Jacobian / D-matrix spectra ────────────────────────────────────
@@ -630,92 +656,79 @@ def make_spectrum_figure(ctrl, eq_data, args):
     reps     = pick_representatives(rows)
 
     fig = plt.figure(figsize=(18, 8.5), facecolor=WHITE)
-    ax_aspec  = fig.add_axes((0.05, 0.15, 0.42, 0.72))
-    ax_dspec  = fig.add_axes((0.55, 0.15, 0.42, 0.72))
+    # Single centered panel + slider
+    ax_hspec  = fig.add_axes((0.07, 0.15, 0.88, 0.72))
     ax_slider = fig.add_axes((0.15, 0.04, 0.70, 0.03))
 
-    for ax in (ax_aspec, ax_dspec):
-        ax.set_facecolor(WHITE)
-        ax.tick_params(colors=BLACK, labelsize=9)
-        for sp in ax.spines.values():
-            sp.set_edgecolor(BLACK)
-            sp.set_linewidth(0.8)
+    ax_hspec.set_facecolor(WHITE)
+    ax_hspec.tick_params(colors=BLACK, labelsize=12)
+    for sp in ax_hspec.spines.values():
+        sp.set_edgecolor(BLACK)
+        sp.set_linewidth(0.8)
 
-    xidx   = np.arange(1, n + 1)
-    ev_all = np.concatenate([eq["ev_D"] for eq, _, _, _ in reps])
-    ev_lo, ev_hi = ev_all.min(), ev_all.max()
-    margin = max(0.06 * (ev_hi - ev_lo), 0.4)
-    mu_min = float(mu_arr[0])
-    mu_max = float(mu_arr[-1])
-    init_mu = float(mu_arr[ctrl.index])
+    xidx        = np.arange(1, n + 1)
+    init_mu     = float(mu_arr[ctrl.index])
+    mu_min      = float(mu_arr[0])
+    mu_max      = float(mu_arr[-1])
 
-    ax_dspec.fill_between([0.5, n+0.5], ev_lo-margin, 0, color=C_STABLE, alpha=0.10, zorder=0)
-    ax_dspec.fill_between([0.5, n+0.5], 0, ev_hi+margin, color=C_UNSTABLE, alpha=0.10, zorder=0)
-    ax_dspec.axhline(0, color=BLACK, linewidth=1.0, linestyle="--", alpha=0.55, zorder=2)
+    # ── eigenvalue range across all reps ─────────────────────────────────────
+    ev_h_all = np.concatenate([eq["ev_D"] * -2.0 for eq, _, _, _ in reps])
+    ev_h_lo, ev_h_hi = ev_h_all.min(), ev_h_all.max()
+    margin_h = max(0.06 * (ev_h_hi - ev_h_lo), 0.4)
+
+    # ── shading: H = -2A → stable (pos-def) when λ > 0 ──────────────────────
+    ax_hspec.fill_between([0.5, n + 0.5], 0, ev_h_hi + 2 * margin_h,
+                          color=C_STABLE,   alpha=0.10, zorder=0)
+    ax_hspec.fill_between([0.5, n + 0.5], ev_h_lo - 2 * margin_h, 0,
+                          color=C_UNSTABLE, alpha=0.10, zorder=0)
+    ax_hspec.axhline(0, color=BLACK, linewidth=1.0, linestyle="--",
+                     alpha=0.55, zorder=2)
+
+    # ── plot one line per representative, smallest eigenvalue first ───────────
+    h_lines  = []
+    h_annots = []
+    dy_list  = []
 
     for k_r, (eq, lbl, col, ls) in enumerate(reps):
-        ev_desc = eq["ev_D"][::-1]
-        ax_dspec.plot(xidx, ev_desc, color=col, linestyle=ls, lw=2.2, marker="o", ms=8, label=lbl, zorder=3)
-        dy = margin * (0.6 + 0.35*k_r)
-        ax_dspec.annotate(
-            f"$\\lambda_{{max}}={eq['lmax_D']:.3f}$\n$H={eq['H']:.1f}$  cut$={eq['cut']:.1f}$",
-            xy=(1, ev_desc[0]), xytext=(1.6, ev_desc[0]+dy),
-            fontsize=9, color=col, zorder=5,
-            arrowprops=dict(arrowstyle="->", color=col, lw=0.9)
-        )
+        # H = -2 * D  →  ev_H ascending = -2 * ev_D ascending
+        # ev_D is stored ascending, so -2*ev_D is descending → reverse to keep ascending
+        ev_h_asc = np.sort(-2.0 * eq["ev_D"])
+        line, = ax_hspec.plot(xidx, ev_h_asc, color=col, linestyle=ls,
+                              linewidth=2.2, marker="o", markersize=8,
+                              label=lbl, zorder=3)
+        h_lines.append(line)
 
-    hline_mu = ax_dspec.axhline(init_mu, color=C_MU_LINE, linewidth=2.0, linestyle="--", zorder=4, label="Current $\\mu$")
-    ax_dspec.set_xticks(xidx)
-    ax_dspec.set_xlim(0.5, n+0.5)
-    ax_dspec.set_ylim(ev_lo - 2*margin, ev_hi + 3.5*margin)
-    ax_dspec.legend(fontsize=8.5, loc="lower left")
-    d_text = ax_dspec.text(
-        0.98, 0.98, "", transform=ax_dspec.transAxes,
-        ha="right", va="top", fontsize=9.5,
-        bbox=dict(boxstyle="round,pad=0.35", facecolor=WHITE, edgecolor=GRAY, alpha=0.94)
-    )
-    ax_dspec.set_title("$D(\\phi^*)$ eigenvalue spectrum\n(Topology dependent, independent of $\\mu$)", fontsize=11, pad=10)
-    ax_dspec.set_xlabel("Eigenvalue rank $k$ (largest first)", fontsize=10)
-    ax_dspec.set_ylabel("$\\lambda_k\\left(D(\\phi^*)\\right)$", fontsize=10)
-    ax_dspec.grid(True, color=LIGHT, linewidth=0.6, zorder=0)
-
-    a_ylim_lo = ev_lo - mu_max - 2*margin
-    a_ylim_hi = ev_hi - mu_min + 3.5*margin
-    ax_aspec.fill_between([0.5, n+0.5], a_ylim_lo, 0, color=C_STABLE, alpha=0.10, zorder=0)
-    ax_aspec.fill_between([0.5, n+0.5], 0, a_ylim_hi, color=C_UNSTABLE, alpha=0.10, zorder=0)
-    ax_aspec.axhline(0, color=BLACK, linewidth=1.5, linestyle="--", zorder=2, label="Stability boundary (0)")
-
-    a_lines = []
-    a_annots = []
-    dy_list = []
-    for k_r, (eq, lbl, col, ls) in enumerate(reps):
-        ev_d = eq["ev_D"][::-1] - init_mu
-        line, = ax_aspec.plot(xidx, ev_d, color=col, linestyle=ls, lw=2.2, marker="o", ms=8, label=lbl, zorder=3)
-        a_lines.append(line)
-        dy = margin * (0.6 + 0.35*k_r)
+        dy = margin_h * (0.6 + 0.35 * k_r)
         dy_list.append(dy)
-        ann = ax_aspec.annotate(
-            f"$\\lambda_{{max}}={eq['lmax_D']-init_mu:.3f}$\n$H={eq['H']:.1f}$  cut$={eq['cut']:.1f}$",
-            xy=(1, ev_d[0]), xytext=(1.6, ev_d[0]+dy),
-            fontsize=9, color=col, zorder=5,
-            arrowprops=dict(arrowstyle="->", color=col, lw=0.9)
+        lmin_h = ev_h_asc[0]
+        ann = ax_hspec.annotate(
+            f"$\\lambda_{{\\min}}={lmin_h:.3f}$\n"
+            f"$H={eq['H']:.1f}$  cut$={eq['cut']:.1f}$",
+            xy=(1, lmin_h),
+            xytext=(1.6, lmin_h - dy),
+            fontsize=12, color=col, zorder=5,
+            arrowprops=dict(arrowstyle="->", color=col, lw=0.9,
+                            shrinkA=2, shrinkB=2)
         )
-        a_annots.append(ann)
+        h_annots.append(ann)
 
-    ax_aspec.set_xticks(xidx)
-    ax_aspec.set_xlim(0.5, n+0.5)
-    ax_aspec.set_ylim(a_ylim_lo, a_ylim_hi)
-    ax_aspec.legend(fontsize=8.5, loc="lower left")
-    a_text = ax_aspec.text(
-        0.98, 0.98, "", transform=ax_aspec.transAxes,
-        ha="right", va="top", fontsize=9.5,
-        bbox=dict(boxstyle="round,pad=0.35", facecolor=WHITE, edgecolor=GRAY, alpha=0.94)
+    ax_hspec.set_xticks(xidx)
+    ax_hspec.set_xlim(0.5, n + 0.5)
+    ax_hspec.set_ylim(ev_h_lo - 3.5 * margin_h, ev_h_hi + 2 * margin_h)
+    ax_hspec.legend(fontsize=12, loc="upper left", ncol=1)
+    ax_hspec.grid(True, color=LIGHT, linewidth=0.6, zorder=0)
+
+    h_text = ax_hspec.text(
+        0.98, 0.02, "",
+        transform=ax_hspec.transAxes, ha="right", va="bottom", fontsize=12,
+        bbox=dict(boxstyle="round,pad=0.35", facecolor=WHITE,
+                  edgecolor=GRAY, alpha=0.94)
     )
-    ax_aspec.set_title("$A(\\phi^*,\\mu)$ Jacobian spectrum\n(Dynamically shifts by $-\\mu$)", fontsize=11, pad=10)
-    ax_aspec.set_xlabel("Eigenvalue rank $k$ (largest first)", fontsize=10)
-    ax_aspec.set_ylabel("$\\lambda_k\\left(A(\\phi^*)\\right) = \\lambda_k(D) - \\mu$", fontsize=10)
-    ax_aspec.grid(True, color=LIGHT, linewidth=0.6, zorder=0)
 
+    ax_hspec.set_xlabel("Eigenvalue rank $k$", fontsize=14)
+    ax_hspec.set_ylabel("$\\lambda_k\\left(H(\\phi^*)\\right)$", fontsize=14)
+
+    # ── slider ────────────────────────────────────────────────────────────────
     slider = Slider(
         ax_slider, "$\\mu$",
         mu_arr[0], mu_arr[-1],
@@ -728,46 +741,48 @@ def make_spectrum_figure(ctrl, eq_data, args):
     slider.label.set_color(BLACK)
     slider.valtext.set_color(BLACK)
     ax_slider.axvline(mu_bin, color=C_MU_LINE, linewidth=2.5, zorder=5)
-    rel = float(np.clip((mu_bin - mu_arr[0]) / (mu_arr[-1] - mu_arr[0] + 1e-12), 0, 1))
+    rel = float(np.clip(
+        (mu_bin - mu_arr[0]) / (mu_arr[-1] - mu_arr[0] + 1e-12), 0, 1))
     ax_slider.text(
         rel, 1.05, f"$\\mu_{{bin}}={mu_bin:.3f}$",
         transform=ax_slider.transAxes,
-        ha="center", va="bottom", fontsize=8.5, color=C_MU_LINE
+        ha="center", va="bottom", fontsize=11, color=C_MU_LINE
     )
 
+    # ── update callback ───────────────────────────────────────────────────────
     def update(idx):
-        mu = float(mu_arr[idx])
+        mu       = float(mu_arr[idx])
         n_stable = sum(1 for r in rows if mu > r["lmax_D"])
 
-        hline_mu.set_ydata([mu, mu])
-        d_text.set_text(
-            f"Current $\\mu = {mu:.4f}$\n"
-            f"Stable iff $\\mu > \\lambda_{{max}}(D)$\n"
-            f"Stable equilibria: {n_stable} / {n_eq}"
-        )
-
+        # H = -2*(D - mu*I) = -2D + 2*mu*I  → ev_H = -2*ev_D + 2*mu (ascending)
         for k_r, (eq, lbl, col, ls) in enumerate(reps):
-            ev_a = eq["ev_D"][::-1] - mu
-            a_lines[k_r].set_ydata(ev_a)
-            a_annots[k_r].xy = (1, ev_a[0])
-            a_annots[k_r].set_position((1.6, ev_a[0] + dy_list[k_r]))
-            a_annots[k_r].set_text(
-                f"$\\lambda_{{max}}={eq['lmax_D']-mu:.3f}$\n"
+            ev_h_asc = np.sort(-2.0 * eq["ev_D"] + 2.0 * mu)
+            h_lines[k_r].set_ydata(ev_h_asc)
+            lmin_h = ev_h_asc[0]
+            h_annots[k_r].xy = (1, lmin_h)
+            h_annots[k_r].set_position((1.6, lmin_h - dy_list[k_r]))
+            h_annots[k_r].set_text(
+                f"$\\lambda_{{\\min}}={lmin_h:.3f}$\n"
                 f"$H={eq['H']:.1f}$  cut$={eq['cut']:.1f}$"
             )
 
-        a_text.set_text(
-            f"Jacobian at $\\mu = {mu:.4f}$\n"
-            f"Stable iff $\\lambda_{{max}}(A) < 0$\n"
+        h_text.set_text(
             f"Stable equilibria: {n_stable} / {n_eq}"
         )
+
+        fig.suptitle(
+            f"Hessian spectrum — {len(reps)} representative equilibria",
+            color=BLACK, fontsize=15, fontweight="bold", y=0.98
+        )
         fig.canvas.draw_idle()
+
+    # trigger once to populate the info box and suptitle
+    update(ctrl.index)
 
     ctrl.register_slider(slider)
     ctrl.register_updater(update)
     fig.slider = slider
     return fig
-
 
 # ── entry point ───────────────────────────────────────────────────────────────
 def main():
@@ -833,7 +848,7 @@ def main():
     )
 
     ctrl = SharedMuController(mu_list)
-    make_phase_figure(ctrl, results, eq_data, args)
+    fig_phase, fig_table = make_phase_figure(ctrl, results, eq_data, args)
     make_spectrum_figure(ctrl, eq_data, args)
     ctrl.trigger()
 

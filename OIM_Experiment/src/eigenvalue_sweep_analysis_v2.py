@@ -681,6 +681,17 @@ def make_figure4(args, n, edges, eq_data, sweep_data):
               title=("Minimum Eigenvalue Analysis of Hessian $H(\\theta)$"),
               xlabel="$\\mu$",
               ylabel="$\\lambda_{\\min}(H(\\theta))$")
+    
+    # ── Override font sizes ───────────────────────────────────────────────────
+    ax_bif_H.title.set_fontsize(20)
+    ax_bif_H.xaxis.label.set_fontsize(16)
+    ax_bif_H.yaxis.label.set_fontsize(16)
+    ax_bif_H.tick_params(axis="both", labelsize=13)
+
+    # ── Colorbar label and ticks ──────────────────────────────────────────────
+    cbar.set_label("Average cut value", fontsize=14)
+    cbar.ax.tick_params(labelsize=12)
+
     return fig
 
 def main():
