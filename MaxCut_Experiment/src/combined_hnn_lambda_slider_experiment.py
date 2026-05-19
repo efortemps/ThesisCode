@@ -26,12 +26,13 @@ from scipy.integrate import solve_ivp
 # ── global style ───────────────────────────────────────────────────────────────
 plt.rcParams.update({
     "font.family":        "serif",
-    "font.size":          13,
-    "axes.titlesize":     14,
-    "axes.labelsize":     13,
-    "xtick.labelsize":    12,
-    "ytick.labelsize":    12,
-    "legend.fontsize":    11,
+    "font.size":   16,
+    "axes.titlesize":   20,
+    "axes.labelsize":   18,
+    "xtick.labelsize":   15,
+    "ytick.labelsize":   15,
+    "legend.fontsize":   14,
+    "figure.titlesize":  22,
     "axes.edgecolor":     "black",
     "axes.linewidth":     0.8,
     "xtick.color":        "black",
@@ -523,7 +524,7 @@ def make_phase_figure(ctrl, results, eq_data, args):
         fig.suptitle(
             rf"Continuous Hopfield  Phase Dynamics"
             rf"  |  $\lambda_{{\mathrm{{bin}}}} = {lam_bin:.4f}$",
-            fontweight="bold", fontsize=14, y=0.99,
+            fontweight="bold", fontsize=22, y=0.99,
         )
         fig.canvas.draw_idle()
 
@@ -571,7 +572,7 @@ def make_table_figure(ctrl, results, eq_data, args):
             rf"Equilibrium Table  |  $N={eq_data['n']}$,  "
             rf"$2^N={eq_data['total']}$ equilibria  |  "
             rf"$\lambda_{{\mathrm{{bin}}}}={lam_bin:.4f}$",
-            fontweight="bold", fontsize=14, y=0.99,
+            fontweight="bold", fontsize=22, y=0.99,
         )
         fig.canvas.draw_idle()
 
@@ -705,7 +706,7 @@ def make_spectrum_figure(ctrl, eq_data, W, args):
         fig.suptitle(
             rf"Continuous Hopfield Hessian Spectra  |  "
             rf"$\lambda_{{\mathrm{{bin}}}}={lam_bin:.4f}$  |  ",
-            fontweight="bold", fontsize=14, y=0.99,
+            fontweight="bold", fontsize=22, y=0.99,
         )
         fig.canvas.draw_idle()
 

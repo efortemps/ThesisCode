@@ -75,12 +75,13 @@ from scipy.integrate import solve_ivp
 # ── Global style ──────────────────────────────────────────────────────────────
 plt.rcParams.update({
     "font.family":       "serif",
-    "font.size":         13,
-    "axes.titlesize":    14,
-    "axes.labelsize":    13,
-    "xtick.labelsize":   12,
-    "ytick.labelsize":   12,
-    "legend.fontsize":   11,
+    "font.size":   16,
+    "axes.titlesize":   20,
+    "axes.labelsize":   18,
+    "xtick.labelsize":   15,
+    "ytick.labelsize":   15,
+    "legend.fontsize":   14,
+    "figure.titlesize":  22,
     "axes.edgecolor":    "black",
     "axes.linewidth":    0.8,
     "xtick.color":       "black",
@@ -124,16 +125,16 @@ _LAM_COLOURS = [C_RED, C_ORANGE, C_AMBER, C_GREEN, C_BLUE,
                 C_PURPLE, "#17becf", "#bcbd22"]
 
 
-def _ax_style(ax, title="", xlabel="", ylabel="", titlesize=13):
+def _ax_style(ax, title="", xlabel="", ylabel="", titlesize=20):
     ax.set_facecolor(WHITE)
-    ax.tick_params(colors=BLACK, labelsize=11)
+    ax.tick_params(colors=BLACK, labelsize=15)
     for sp in ax.spines.values():
         sp.set_edgecolor(BLACK); sp.set_linewidth(0.8)
     ax.grid(True, color=LIGHT, linewidth=0.5, zorder=0)
     if title:   ax.set_title(title,   color=BLACK, fontsize=titlesize,
                              fontweight="bold", pad=5)
-    if xlabel:  ax.set_xlabel(xlabel, color=BLACK, fontsize=12)
-    if ylabel:  ax.set_ylabel(ylabel, color=BLACK, fontsize=12)
+    if xlabel:  ax.set_xlabel(xlabel, color=BLACK, fontsize=18)
+    if ylabel:  ax.set_ylabel(ylabel, color=BLACK, fontsize=18)
 
 
 def _lighten(hex_col, factor=0.6):
@@ -440,7 +441,7 @@ def make_figure1(results: list, lam_values: list, args) -> plt.Figure:
                             fontsize=9, rotation=45, ha="right")
         ax0.set_xlim(-0.7, n_init + 0.7)
         ax0.set_ylim(0, max(counts.max(), 1) * 1.30)
-        ax0.legend(fontsize=8, loc="upper left")
+        ax0.legend(fontsize=15, loc="upper left")
         _ax_style(ax0,
                   title=rf"$\lambda = {lam}$",
                   xlabel=rf"# ICs $\to$ opt (/{n_init})",
@@ -448,7 +449,7 @@ def make_figure1(results: list, lam_values: list, args) -> plt.Figure:
 
     fig.suptitle(
         r"HNN $\lambda$ Sweep — Histogram Summary",
-        color=BLACK, fontsize=14, fontweight="bold")
+        color=BLACK, fontsize=22, fontweight="bold")
     return fig
 
 
@@ -498,7 +499,7 @@ def make_figure3(results: list, lam_values: list, args) -> plt.Figure:
     ax.set_xticklabels([rf"$\lambda={v}$" for v in lam_values],
                        fontsize=9, rotation=20)
     ax.axhline(100, color=GRAY, linewidth=0.8, linestyle="--", alpha=0.6)
-    ax.legend(fontsize=9)
+    ax.legend(fontsize=15, loc= "upper right")
     _ax_style(ax,
               title=rf"Success fractions per $\lambda$"
                     f"\nover {n_graphs} graphs",
@@ -531,7 +532,7 @@ def make_figure3(results: list, lam_values: list, args) -> plt.Figure:
     ax.set_ylim(-0.3, n_init + 0.5)
     ax.axhline(n_init, color=GRAY, linewidth=0.8, linestyle="--",
                label=f"n_init = {n_init}")
-    ax.legend(fontsize=9)
+    ax.legend(fontsize=15, loc="upper right")
     _ax_style(ax,
               title=r"Mean # ICs $\to$ global opt",
               xlabel=r"$\lambda$",
@@ -539,7 +540,7 @@ def make_figure3(results: list, lam_values: list, args) -> plt.Figure:
 
     fig.suptitle(
         r"HNN $\lambda$ Sweep Summary",
-        color=BLACK, fontsize=14, fontweight="bold")
+        color=BLACK, fontsize=22, fontweight="bold")
     return fig
 
 
@@ -642,11 +643,15 @@ def make_figure5(results: list, lam_values: list, args) -> plt.Figure:
     metrics = [graph_structural_metrics(results[i]) for i in col_idxs]
 
     plt.rcParams.update({
-        "font.size":      9,
-        "axes.titlesize": 9,
-        "axes.labelsize": 8,
+    "font.size":         22,   # base size — fallback for anything not listed below
+    "axes.titlesize":    30,   # subplot titles (e.g. "λ = 10.0")
+    "axes.labelsize":    25,   # x-axis and y-axis labels
+    "xtick.labelsize":   20,   # x tick numbers
+    "ytick.labelsize":   20,   # y tick numbers
+    "legend.fontsize":   25,   # legend text
+    "figure.titlesize":  30,   # fig.suptitle() — the big title above all panels
     })
-
+    
     fig   = plt.figure(figsize=(26, 22), facecolor="white")
     outer = gridspec.GridSpec(2, 1, figure=fig,
                               height_ratios=[3.3, 1.7],
