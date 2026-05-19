@@ -161,7 +161,7 @@ def run_one_graph(W: np.ndarray, g_idx: int, args) -> dict:
        -> mu_bin_exact + all_thresholds dict
     2. enrich_thresholds()  [this file]
        -> per_eq list with (bits, lmax_D, cut, H) — no extra eigen calls
-    3. ODE trajectories at mu_bin_exact
+    3. ODE trajectories at mu_bin_exact + 0.1 (small additive noise)
     4. Count how many ICs land on the global optimum
     """
     N   = W.shape[0]
@@ -183,7 +183,7 @@ def run_one_graph(W: np.ndarray, g_idx: int, args) -> dict:
     phi0s = [rng.uniform(-np.pi, np.pi, N) for _ in range(args.n_init)]
 
     # ── Step 4: ODE at mu_bin_exact ───────────────────────────────────────────
-    oim.mu = mu_bin_exact
+    oim.mu = mu_bin_exact + 0.1 # small additive noise.
     sols   = oim.simulate_many(phi0s,
                                t_span=(0., args.t_end),
                                n_points=args.n_points,
@@ -326,8 +326,7 @@ def make_figure1(results, args):
     ]
     ax.legend(handles=legend_patches, fontsize=8.5, loc="upper left")
     _ax_style(ax,
-              title=(f"# ICs (out of {n_init}) reaching the global Max-Cut optimum\n"
-                     f"at exact $\\mu_{{\\rm bin}}$ -- {n_graphs} ER graphs, $N={args.N}$"),
+              title=(f"ICs (out of {n_init}) reaching the global Max-Cut optimum\n"),
               xlabel=f"# ICs converging to global optimum (out of {n_init})",
               ylabel="# graphs")
 
@@ -335,34 +334,22 @@ def make_figure1(results, args):
     ax     = axes[1]
     x_vals = np.arange(n_init + 1)
     cdf    = np.array([np.mean(n_opt >= k) for k in x_vals])
-    ax.step(x_vals, cdf, where="post", color=C_BLUE, linewidth=2.2,
-            label="P(# ICs >= k)")
+    ax.step(x_vals, cdf, where="post", color=C_BLUE, linewidth=2.2)
     ax.fill_between(x_vals, cdf, step="post", alpha=0.15, color=C_BLUE)
-    ax.axhline(1.0, color=GRAY, linewidth=0.9, linestyle="--")
-    ax.axvline(1, color=C_GREEN, linewidth=1.5, linestyle=":",
-               label=f"P(>=1 IC) = {cdf[1]:.2f}")
     ax.set_xticks(x_vals)
     ax.set_ylim(-0.02, 1.10)
     ax.set_xlim(-0.3, n_init + 0.3)
     ax.text(0.97, 0.05,
             f"P(at least 1 IC hits opt) = {cdf[1]*100:.1f}%\n"
-            f"P(ALL {n_init} ICs hit opt)  = {cdf[n_init]*100:.1f}%\n"
-            f"Mean # ICs = {np.mean(n_opt):.2f} / {n_init}",
+            f"P(ALL {n_init} ICs hit opt)  = {cdf[n_init]*100:.1f}%\n",
             transform=ax.transAxes, ha="right", va="bottom", fontsize=9,
             bbox=dict(boxstyle="round,pad=0.35", facecolor=WHITE,
                       edgecolor=GRAY, alpha=0.95))
     ax.legend(fontsize=9)
     _ax_style(ax,
-              title=(f"Cumulative: P(# ICs >= k reaching global optimum)\n"
-                     f"across {n_graphs} graphs at exact $\\mu_{{\\rm bin}}$"),
+              title=(f"Cumulative: P(# ICs >= k reaching global optimum)"),
               xlabel="k (minimum # ICs that find the optimum)",
               ylabel="fraction of graphs")
-
-    fig.suptitle(
-        f"Conjecture Test: exact $\\mu_{{\\rm bin}}$ achieves global Max-Cut | "
-        f"$N={args.N}$, $p_1={args.p1}$, {n_graphs} ER graphs | "
-        f"$n_{{\\rm init}}={n_init}$,  $2^N={2**args.N}$ exact equilibria",
-        color=BLACK, fontsize=11, fontweight="bold")
     return fig
 
 
@@ -448,7 +435,7 @@ def make_figure2(results, args, n_show=6):
 
     fig.suptitle(
         f"Spectral fingerprint: $\\lambda_{{\\max}}(D)$ vs $H(\\phi^*)$ "
-        f"for all $2^N$ equilibria | $N={args.N}$\n",
+        f"for all $2^N$ equilibria",
         color=BLACK, fontsize=11, fontweight="bold")
     return fig
 
@@ -466,7 +453,7 @@ def make_figure3(results, args):
     approx  = np.array([max(r["cuts_bin"]) / max(r["best_cut"], 1e-9)
                          for r in results])
 
-    fig, axes = plt.subplots(1, 3, figsize=(17, 5.5), facecolor=WHITE)
+    fig, axes = plt.subplots(1, 2, figsize=(17, 5.5), facecolor=WHITE)
     fig.subplots_adjust(wspace=0.38, left=0.07, right=0.97,
                         top=0.87, bottom=0.13)
 
@@ -490,31 +477,8 @@ def make_figure3(results, args):
               xlabel="$\\mu_{\\rm bin}$ (exact, from $2^N$ enumeration)",
               ylabel="# graphs")
 
-    # ── (b) Approximation ratio at mu_bin_exact ───────────────────────────────
-    ax = axes[1]
-    ax.hist(approx, bins=20, color=C_GREEN, alpha=0.72,
-            edgecolor=BLACK, linewidth=0.5)
-    ax.axvline(approx.mean(), color=C_AMBER, linewidth=2.0, linestyle="--",
-               label=f"mean = {approx.mean():.4f}")
-    ax.axvline(1.0, color=C_RED, linewidth=1.5, linestyle=":",
-               label="global opt (= 1.0)")
-    ax.text(0.03, 0.97,
-            f"mean  = {approx.mean():.4f}\n"
-            f"std   = {approx.std():.4f}\n"
-            f"min   = {approx.min():.4f}\n"
-            f"ratio=1: {int(np.sum(approx >= 1-1e-6))}/{n_graphs} graphs",
-            transform=ax.transAxes, ha="left", va="top", fontsize=8.5,
-            bbox=dict(boxstyle="round,pad=0.3", facecolor=WHITE,
-                      edgecolor=GRAY, alpha=0.95))
-    ax.legend(fontsize=8.5)
-    _ax_style(ax,
-              title=(f"Approximation ratio: best cut at $\\mu_{{\\rm bin}}$ / opt\n"
-                     f"over {n_graphs} graphs"),
-              xlabel="best cut (at $\\mu_{\\rm bin}$) / global opt",
-              ylabel="# graphs")
-
     # ── (c) Success-fraction bar chart ────────────────────────────────────────
-    ax = axes[2]
+    ax = axes[1]
     frac_any  = float(np.mean(n_opt >= 1))
     frac_all  = float(np.mean(n_opt == n_init))
     frac_none = float(np.mean(n_opt == 0))
@@ -532,313 +496,14 @@ def make_figure3(results, args):
     ax.set_ylim(0, 115)
     ax.axhline(100, color=GRAY, linewidth=0.9, linestyle="--", alpha=0.7)
     _ax_style(ax,
-              title=(f"How often does $\\mu_{{\\rm bin}}$ reach the optimum?\n"
-                     f"Across {n_graphs} graphs, {n_init} ICs each"),
+              title=(f"Graph proportions reaching global optimum"),
               xlabel="",
               ylabel="% of graphs")
 
     fig.suptitle(
-        f"Summary Statistics | $N={args.N}$, $p_1={args.p1}$, "
-        f"{n_graphs} ER graphs | $n_{{\\rm init}}={n_init}$",
+        f"Summary Statistics",
         color=BLACK, fontsize=11, fontweight="bold")
     return fig
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Figure 4 — Worst-graph trajectories + styled convergence table
-# ═══════════════════════════════════════════════════════════════════════════════
-
-# State-type colour palette (background tints for table rows)
-_STATE_BG = {
-    "M2-binary":     "#d4eac8",   # soft green
-    "M1-half":       "#fde8c8",   # soft orange
-    "M1-mixed":      "#fde8c8",
-    "Type-III":      "#e8c8de",   # soft purple
-    "not-converged": "#e8e8e8",   # grey
-}
-_STATE_BADGE = {          # stronger colour for the type-name cell itself
-    "M2-binary":     "#55a868",
-    "M1-half":       "#DD8452",
-    "M1-mixed":      "#e377c2",
-    "Type-III":      "#8172b2",
-    "not-converged": "#b0b0b0",
-}
-
-
-def _classify_sol(sol, W, best_cut, per_eq, bin_tol=0.05):
-    """
-    Classify one ODE solution into the convergence categories used
-    throughout the codebase, and find the nearest exact M2 equilibrium.
-
-    Returns a dict with all fields needed for the table.
-    """
-    theta    = sol.y[:, -1]
-    sigma    = np.sign(np.cos(theta)); sigma[sigma == 0] = 1.0
-    bits     = tuple(0 if s > 0 else 1 for s in sigma)
-    cut      = 0.25 * float(np.sum(W * (1.0 - sigma[:, None] * sigma[None, :])))
-    H        = 0.5  * float(sigma @ W @ sigma)
-    residual = float(np.max(np.abs(np.sin(theta))))
-
-    # per-spin atom types
-    def _atom(th):
-        s, c = np.sin(th), np.cos(th)
-        if abs(s) < bin_tol:
-            return "zero" if c > 0 else "pi"
-        if abs(abs(s) - 1.0) < bin_tol:
-            return "half"
-        return "other"
-
-    atoms  = [_atom(th) for th in theta]
-    n_zero = atoms.count("zero"); n_pi = atoms.count("pi")
-    n_half = atoms.count("half"); n_oth = atoms.count("other")
-
-    if n_zero + n_pi == len(theta):
-        stype = "M2-binary"
-    elif n_half == len(theta):
-        stype = "M1-half"
-    elif n_half > 0 and n_oth == 0:
-        stype = "M1-mixed"
-    elif n_oth > 0:
-        stype = "Type-III"
-    else:
-        stype = "not-converged"
-
-    is_opt = abs(cut - best_cut) < 1e-6
-
-    # nearest M2 equilibrium (by wrapped L2 distance in phase space)
-    nearest_bits, nearest_dist = None, np.inf
-    phi_end = np.array([0.0 if b == 0 else np.pi for b in bits])
-    for row in per_eq:
-        diff = theta - row["phi"] if hasattr(row, "__contains__") and "phi" in row \
-               else theta - np.array([0.0 if b == 0 else np.pi for b in row["bits"]])
-        diff = (diff + np.pi) % (2 * np.pi) - np.pi
-        d    = float(np.linalg.norm(diff))
-        if d < nearest_dist:
-            nearest_dist = d
-            nearest_bits = row["bits"]
-
-    return dict(
-        bits=bits, cut=cut, H=H, residual=residual,
-        is_binary=(stype == "M2-binary"), is_opt=is_opt,
-        state_type=stype,
-        nearest_bits=nearest_bits, nearest_dist=nearest_dist,
-    )
-
-
-def _draw_styled_table(ax, conv_list, best_cut, n_init, mu, mu_bin):
-    """
-    Render a two-section styled convergence table inside an axis-off axes.
-
-    Section 1 — Per-trajectory rows
-    Section 2 — Unique terminal states summary
-    """
-    ax.set_facecolor(WHITE)
-    ax.axis("off")
-
-    # ── colour helpers ────────────────────────────────────────────────────────
-    def _bg(stype):   return _STATE_BG.get(stype, WHITE)
-    def _badge(stype): return _STATE_BADGE.get(stype, GRAY)
-
-    # ── Section 1: per-trajectory data ───────────────────────────────────────
-    hdr1 = ["#", "Type", "Bits  (φ*)", "H", "Cut", "✓", "Res.",
-            "Nearest M2", "Dist"]
-    rows1 = []
-    for i, c in enumerate(conv_list):
-        bits_s   = "".join(str(b) for b in c["bits"])
-        near_s   = "".join(str(b) for b in c["nearest_bits"]) \
-                   if c["nearest_bits"] else "—"
-        opt_mark = "★" if c["is_opt"] else ("✓" if c["is_binary"] else "✗")
-        rows1.append([
-            str(i),
-            c["state_type"],
-            bits_s,
-            f"{c['H']:.2f}",
-            f"{c['cut']:.2f}",
-            opt_mark,
-            f"{c['residual']:.4f}",
-            near_s,
-            f"{c['nearest_dist']:.3f}",
-        ])
-
-    # ── Section 2: summary ───────────────────────────────────────────────────
-    from collections import Counter
-    summary = {}
-    for c in conv_list:
-        key = (c["state_type"], c["bits"])
-        if key not in summary:
-            summary[key] = {"stype": c["state_type"], "bits": c["bits"],
-                            "H": c["H"], "cut": c["cut"],
-                            "count": 0, "residuals": [], "is_opt": c["is_opt"]}
-        summary[key]["count"]     += 1
-        summary[key]["residuals"].append(c["residual"])
-    # sort by cut descending
-    summ_vals = sorted(summary.values(), key=lambda x: -x["cut"])
-
-    hdr2  = ["Type", "Bits", "H", "Cut", "n", "%", "Mean res.", "→ Opt?"]
-    rows2 = []
-    for s in summ_vals:
-        bits_s = "".join(str(b) for b in s["bits"])
-        rows2.append([
-            s["stype"],
-            bits_s,
-            f"{s['H']:.2f}",
-            f"{s['cut']:.2f}",
-            str(s["count"]),
-            f"{100*s['count']/n_init:.0f}%",
-            f"{float(np.mean(s['residuals'])):.4f}",
-            "★ YES" if s["is_opt"] else "no",
-        ])
-
-    # ── Geometry ─────────────────────────────────────────────────────────────
-    # We place both tables in the axes using ax.table with bbox.
-    # Total vertical space: [0, 1].  Allocate:
-    #   title1  row height
-    #   header1 row height
-    #   n_traj  data rows
-    #   gap
-    #   title2  row height
-    #   header2 row height
-    #   n_summ  data rows
-    #   footer (μ info)
-
-    rh   = 0.048   # data-row height (axes fraction)
-    hh   = 0.054   # header row
-    th   = 0.050   # section title
-    gap  = 0.040
-    foot = 0.055
-    n1   = len(rows1); n2 = len(rows2)
-
-    total = 2*th + 2*hh + (n1 + n2)*rh + gap + foot
-    # rescale so everything fits in [0.01, 0.99]
-    if total > 0.98:
-        s = 0.98 / total
-        rh *= s; hh *= s; th *= s; gap *= s; foot *= s
-
-    y = 0.99   # cursor, top-down
-
-    # ── helper: draw one table section ───────────────────────────────────────
-    def _section(y_cursor, title_txt, col_labels, data_rows,
-                  type_col_idx, opt_col_idx=None):
-        nc = len(col_labels); nr = len(data_rows)
-
-        # Draw a full-width dark banner manually
-        from matplotlib.patches import FancyBboxPatch
-        banner_h = th * 0.9
-        banner = FancyBboxPatch(
-            (0.0, y_cursor - banner_h),
-            1.0, banner_h,
-            boxstyle="square,pad=0",
-            transform=ax.transAxes,
-            facecolor="#3a3a3a", edgecolor="none", alpha=0.88,
-            clip_on=False, zorder=3)
-        ax.add_patch(banner)
-        ax.text(0.5, y_cursor - banner_h / 2,
-                title_txt,
-                transform=ax.transAxes,
-                ha="center", va="center",
-                fontsize=8.5, fontweight="bold", color=WHITE,
-                zorder=5)
-
-        y_cursor -= th
-        table_height = hh + nr * rh
-        bbox = [0.0, y_cursor - table_height, 1.0, table_height]
-
-        tbl = ax.table(cellText=data_rows,
-                       colLabels=col_labels,
-                       bbox=bbox,
-                       cellLoc="center")
-        tbl.auto_set_font_size(False)
-        tbl.set_fontsize(7.8)
-
-        # Style header row
-        for j in range(nc):
-            cell = tbl[0, j]
-            cell.set_facecolor("#dce6f0")
-            cell.set_text_props(fontweight="bold", color="#1a1a2e")
-            cell.set_edgecolor("#9ab0cc")
-            cell.set_linewidth(0.6)
-
-        # Style data rows
-        for i, row in enumerate(data_rows, start=1):
-            stype    = row[type_col_idx]
-            bg_col   = _bg(stype)
-            bdg_col  = _badge(stype)
-            is_opt_r = (opt_col_idx is not None and "★" in row[opt_col_idx])
-
-            for j in range(nc):
-                cell = tbl[i, j]
-                # Alternate row shading: slightly darker on odd rows
-                shade = bg_col if (i % 2 == 1) else _lighten(bg_col, 0.55)
-                cell.set_facecolor(shade)
-                cell.set_edgecolor("#c8c8c8")
-                cell.set_linewidth(0.4)
-                cell.get_text().set_color(BLACK)
-
-            # Type badge column — bolder colour
-            tbl[i, type_col_idx].set_facecolor(bdg_col)
-            tbl[i, type_col_idx].get_text().set_color(WHITE)
-            tbl[i, type_col_idx].get_text().set_fontweight("bold")
-            tbl[i, type_col_idx].get_text().set_fontsize(7.0)
-
-            # Optimum column special styling
-            if opt_col_idx is not None:
-                cell = tbl[i, opt_col_idx]
-                if "★" in row[opt_col_idx]:
-                    cell.set_facecolor("#55a868")
-                    cell.get_text().set_color(WHITE)
-                    cell.get_text().set_fontweight("bold")
-                elif "✓" in row[opt_col_idx]:
-                    cell.set_facecolor("#9dcf9a")
-                elif "✗" in row[opt_col_idx]:
-                    cell.set_facecolor("#f7b89a")
-
-        return y_cursor - table_height
-
-    # ── Draw Section 1 ────────────────────────────────────────────────────────
-    y = _section(y, "Per-trajectory convergence",
-                 hdr1, rows1,
-                 type_col_idx=1, opt_col_idx=5)
-
-    y -= gap
-
-    # ── Draw Section 2 ────────────────────────────────────────────────────────
-    y = _section(y, "Summary — unique terminal states",
-                 hdr2, rows2,
-                 type_col_idx=0, opt_col_idx=7)
-
-    y -= gap * 0.5
-
-    # ── Footer: μ status line ─────────────────────────────────────────────────
-    diff    = mu - mu_bin
-    above   = diff > 0
-    status  = f"above  (binarises ✓)" if above else f"below  (may not binarise ✗)"
-    status_col = C_GREEN if above else C_ORANGE
-    footer_txt = (f"$\\mu = {mu:.4f}$   |   "
-                  f"$\\mu_{{\\rm bin}} = {mu_bin:.4f}$   |   "
-                  f"$\\mu - \\mu_{{\\rm bin}} = {diff:+.4f}$   "
-                  f"({status})")
-    ax.text(0.5, max(y - 0.01, 0.01),
-            footer_txt,
-            transform=ax.transAxes,
-            ha="center", va="top",
-            fontsize=8, color=status_col,
-            bbox=dict(boxstyle="round,pad=0.35",
-                      facecolor="#f5f5f5",
-                      edgecolor=status_col, linewidth=0.9, alpha=0.95))
-
-    # ── Type legend at very bottom ────────────────────────────────────────────
-    legend_handles = [
-        mpatches.Patch(facecolor=_badge(k), edgecolor=GRAY,
-                       label=k, alpha=0.88)
-        for k in _STATE_BADGE
-    ]
-    ax.legend(handles=legend_handles,
-              loc="lower center",
-              bbox_to_anchor=(0.5, 0.0),
-              ncol=3, fontsize=7.5,
-              facecolor=WHITE, edgecolor=GRAY,
-              framealpha=0.92, labelcolor=BLACK)
-
 
 def _lighten(hex_col, factor=0.6):
     """Blend a hex colour toward white by `factor` (0=original, 1=white)."""
@@ -848,151 +513,6 @@ def _lighten(hex_col, factor=0.6):
     g2 = int(g + (255 - g) * factor)
     b2 = int(b + (255 - b) * factor)
     return f"#{r2:02x}{g2:02x}{b2:02x}"
-
-
-def make_figure4(results, args):
-    """
-    Figure 4 — Worst-performing graph analysis.
-
-    Left panel  : Phase trajectories θ_i(t) for all n_init ICs at μ_bin,
-                  identical style to the mu-slider experiment.
-    Right panel : Styled two-section convergence table:
-                  Section 1 — one row per trajectory (state, bits, H, cut, ★)
-                  Section 2 — unique terminal states summary
-
-    The "worst" graph is the one with the lowest n_opt_bin (fewest ICs
-    reaching the global optimum).  Ties are broken by the smallest n_opt_bin
-    / most frustrated graph (highest mu_bin_exact).
-    """
-    # ── Pick worst graph ──────────────────────────────────────────────────────
-    n_opt_arr = np.array([r["n_opt_bin"] for r in results])
-    mu_arr    = np.array([r["mu_bin_exact"] for r in results])
-    # primary sort: n_opt ascending; secondary: mu_bin descending (harder)
-    worst_idx = int(
-        sorted(range(len(results)),
-               key=lambda i: (n_opt_arr[i], -mu_arr[i]))[0]
-    )
-    r = results[worst_idx]
-
-    # ── Re-simulate at mu_bin_exact (phi0s were stored) ──────────────────────
-    W       = r["W"]
-    N       = r["N"]
-    mu_b    = r["mu_bin_exact"]
-    phi0s   = r["phi0s"]
-    per_eq  = r["per_eq"]
-
-    oim  = OIMMaxCut(W, mu=mu_b, seed=args.seed)
-    sols = oim.simulate_many(phi0s,
-                              t_span=(0., args.t_end),
-                              n_points=args.n_points,
-                              rtol=args.rtol, atol=args.atol)
-
-    # Classify every trajectory
-    conv_list = [_classify_sol(s, W, r["best_cut"], per_eq, args.bin_tol)
-                 for s in sols]
-
-    n_opt_here = sum(1 for c in conv_list if c["is_opt"])
-    n_bin_here = sum(1 for c in conv_list if c["is_binary"])
-
-    # ── Figure layout ─────────────────────────────────────────────────────────
-    fig = plt.figure(figsize=(24, max(9, 2.2 + 0.42 * args.n_init)),
-                     facecolor=WHITE)
-    gs  = gridspec.GridSpec(1, 2, figure=fig,
-                       width_ratios=[1.55, 1.0],
-                       wspace=0.06,
-                       left=0.04, right=0.99, top=0.88, bottom=0.09)
-    ax_phase = fig.add_subplot(gs[0, 0])
-    ax_table = fig.add_subplot(gs[0, 1])
-
-    ax_phase.set_facecolor(WHITE)
-    ax_table.set_facecolor(WHITE)
-    for sp in ax_phase.spines.values():
-        sp.set_edgecolor(BLACK); sp.set_linewidth(0.8)
-    ax_phase.grid(True, color=LIGHT, linewidth=0.5, zorder=0)
-
-    # ── Left: phase trajectories ──────────────────────────────────────────────
-    SPIN_COLS = plt.get_cmap("tab20")(np.linspace(0, 1, max(N, 2)))
-    PI_TICKS  = [-np.pi, -np.pi / 2, 0, np.pi / 2, np.pi]
-    PI_LABELS = [r"$-\pi$", r"$-\pi/2$", r"$0$", r"$\pi/2$", r"$\pi$"]
-
-    t = sols[0].t
-    for sol in sols:
-        for spin in range(N):
-            ax_phase.plot(t, sol.y[spin],
-                          color=SPIN_COLS[spin % 20],
-                          alpha=0.42, linewidth=0.95, zorder=2)
-
-    for yref, lw_r in [(np.pi, 1.1), (np.pi / 2, 0.65),
-                        (0.0, 1.4), (-np.pi / 2, 0.65), (-np.pi, 0.9)]:
-        ax_phase.axhline(yref, color=GRAY, linestyle="--",
-                         linewidth=lw_r, alpha=0.75, zorder=1)
-        if abs(abs(yref) - np.pi / 2) < 1e-9:
-            lbl = r"$\pi/2$" if yref > 0 else r"$-\pi/2$"
-            ax_phase.text(t[-1] * 0.996, yref + 0.10, lbl,
-                          ha="right", va="bottom", fontsize=7.5, color=GRAY)
-
-    ax_phase.set_yticks(PI_TICKS)
-    ax_phase.set_yticklabels(PI_LABELS, fontsize=10, color=BLACK)
-    ax_phase.set_ylim(-4.2, 4.2)
-    ax_phase.set_xlim(t[0], t[-1])
-    ax_phase.tick_params(colors=BLACK, labelsize=9)
-
-    # Status badge (top-right)
-    is_all_bin = (n_bin_here == args.n_init)
-    status_txt = ("BINARISED ✓" if is_all_bin
-                  else f"NOT YET BINARISED ✗   "
-                       f"M2:{n_bin_here}  opt:{n_opt_here}")
-    ax_phase.text(0.98, 0.97, status_txt,
-                  transform=ax_phase.transAxes, ha="right", va="top",
-                  fontsize=9, fontweight="bold",
-                  color=C_GREEN if is_all_bin else C_ORANGE,
-                  bbox=dict(boxstyle="round,pad=0.3", facecolor=WHITE,
-                            edgecolor=GRAY, alpha=0.95))
-
-    # Info badge (top-left)
-    n_edges = int(np.sum(W)) // 2
-    ax_phase.text(0.01, 0.97,
-                  f"$\\mu = {mu_b:.4f}$  |  "
-                  f"$\\mu_{{\\rm bin}} = {mu_b:.4f}$  |  "
-                  f"$W_{{\\rm tot}} = {r['w_total']:.0f}$  |  "
-                  f"best cut $= {r['best_cut']:.0f}$",
-                  transform=ax_phase.transAxes, ha="left", va="top",
-                  fontsize=9.5,
-                  bbox=dict(boxstyle="round,pad=0.28", facecolor=WHITE,
-                            edgecolor=GRAY, alpha=0.93))
-
-    # Spin legend
-    spin_patches = [mpatches.Patch(color=SPIN_COLS[s % 20], label=f"spin {s}")
-                    for s in range(N)]
-    ax_phase.legend(handles=spin_patches, loc="lower right", fontsize=7.5,
-                    ncol=max(1, N // 5), framealpha=0.90)
-
-    ax_phase.set_xlabel("time  $t$", color=BLACK, fontsize=11)
-    ax_phase.set_ylabel("phase  $\\theta_i(t)$  (rad)", color=BLACK, fontsize=11)
-    ax_phase.set_title(
-        f"Phase dynamics — worst-performing graph  (graph {worst_idx+1} / {len(results)})  |  "
-        f"$\\mu = {mu_b:.4f}$  |  "
-        f"$N={N}$,  $|E|={n_edges}$  |  "
-        f"opt reached: {n_opt_here}/{args.n_init} ICs",
-        color=BLACK, fontsize=10, fontweight="bold", pad=5)
-
-    # ── Right: styled convergence table ───────────────────────────────────────
-    ax_table.axis("off")
-    _draw_styled_table(ax_table, conv_list, r["best_cut"],
-                       args.n_init, mu_b, mu_b)
-
-    # ── Suptitle ──────────────────────────────────────────────────────────────
-    fig.suptitle(
-        f"Figure 4 — Worst-performing graph analysis  |  "
-        f"Graph {worst_idx+1} / {len(results)}  |  "
-        f"$N={N}$,  $p_1={args.p1}$  |  "
-        f"$\\mu_{{\\rm bin}} = {mu_b:.4f}$  |  "
-        f"{n_opt_here} / {args.n_init} ICs reach global optimum "
-        f"(cut $= {r['best_cut']:.0f}$)",
-        color=BLACK, fontsize=11, fontweight="bold")
-
-    return fig
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Figure 5 — Structural comparison: 4 worst vs 1 best performing graph
@@ -1368,7 +888,6 @@ def main():
     fig1 = make_figure1(results, args)   # histogram + CDF
     fig2 = make_figure2(results, args)   # spectral fingerprint
     fig3 = make_figure3(results, args)   # summary statistics
-    fig4 = make_figure4(results, args)   # worst-graph trajectories + table
     fig5 = make_figure5(results, args)   # structural comparison: 4 worst vs best
 
     if args.save:
