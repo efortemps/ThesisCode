@@ -441,14 +441,6 @@ def _draw_phase(ax, sols, conv, lam, lam_bin, w_total, best_cut, n, n_init):
         loc="lower right", fontsize=8, ncol=max(1, n // 5), framealpha=0.90,
     )
 
-    ax.set_title(
-        rf"Phase dynamics  $\lambda = {lam:.4f}$"
-        rf"  |  $\lambda_{{\mathrm{{bin}}}} = {lam_bin:.4f}$"
-        rf"  |  {n_init} initial conditions",
-        color=BLACK, fontsize=13, pad=6,
-    )
-
-
 # ── shared slider controller ───────────────────────────────────────────────────
 class SharedLambdaController:
     def __init__(self, lam_arr):
@@ -529,9 +521,8 @@ def make_phase_figure(ctrl, results, eq_data, args):
             eq_data["n"], args.n_init,
         )
         fig.suptitle(
-            rf"Continuous Hopfield  $\lambda$-slider  |  {args.graph}  |  "
-            rf"$N={eq_data['n']}$,  $2^N={eq_data['total']}$ eq  |  "
-            rf"best cut $= {eq_data['best_cut']:.1f}$",
+            rf"Continuous Hopfield  Phase Dynamics"
+            rf"  |  $\lambda_{{\mathrm{{bin}}}} = {lam_bin:.4f}$",
             fontweight="bold", fontsize=14, y=0.99,
         )
         fig.canvas.draw_idle()
@@ -626,9 +617,7 @@ def make_spectrum_figure(ctrl, eq_data, W, args):
     ax_orig.set(
         xlim=(0.5, n + 0.5),
         ylim=(ev_W[0] - margin, ev_W[-1] + ctrl.lam_arr[-1] * 0.1 + margin),
-        title=r"Hessian spectrum at Origin ($s = 0$)"
-              "\n"
-              r"$H(0) = W + \frac{1}{\lambda}\,I$",
+        title=r"Hessian spectrum at Origin ($s = 0$)",
         xlabel="eigenvalue index $k$",
         ylabel=r"$\lambda_k \left(H(s)\right)$",
     )
@@ -655,9 +644,7 @@ def make_spectrum_figure(ctrl, eq_data, W, args):
     ax_eq.set(
         xlim=(0.5, n + 0.5),
         ylim=(-1, ev_W[-1] + 10),
-        title=r"Hessian spectrum $H(\tilde{s}^*)$ at continuous fixed points"
-              "\n"
-              r"$H_{ij}(\tilde{s}^*) = W_{ij} + \delta_{ij}\,\frac{1/\lambda}{1 - \tilde{s}_i^{*2}}$",
+        title=r"Hessian spectrum $H(\tilde{s}^*)$",
         xlabel="eigenvalue index $k$",
         ylabel=r"$\lambda_k \left(H(\tilde{s}^*)\right)$",
     )
@@ -716,9 +703,8 @@ def make_spectrum_figure(ctrl, eq_data, W, args):
         ax_eq.set_ylim(-1, max_ev + 2)
 
         fig.suptitle(
-            rf"Continuous Hopfield — Hessian Spectra  |  "
-            rf"$\lambda_{{\mathrm{{bin}}}}={lam_bin:.4f}$  |  "
-            rf"$\lambda={lam:.4f}$",
+            rf"Continuous Hopfield Hessian Spectra  |  "
+            rf"$\lambda_{{\mathrm{{bin}}}}={lam_bin:.4f}$  |  ",
             fontweight="bold", fontsize=14, y=0.99,
         )
         fig.canvas.draw_idle()
