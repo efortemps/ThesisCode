@@ -431,14 +431,14 @@ def make_figure1(results: list, lam_values: list, args) -> plt.Figure:
                 ax0.text(bar.get_x() + bar.get_width() / 2,
                          bar.get_height() + 0.15,
                          f"{cnt}", ha="center", va="bottom",
-                         fontsize=8, color=BLACK)
+                         fontsize=15, color=BLACK)
 
         ax0.axvline(n_opt.mean(), color=C_AMBER, linewidth=1.8,
                     linestyle="--", zorder=5,
                     label=f"mean={n_opt.mean():.2f}")
         ax0.set_xticks(sparse_ticks)
         ax0.set_xticklabels([str(t) for t in sparse_ticks],
-                            fontsize=9, rotation=45, ha="right")
+                            fontsize=15, rotation=45, ha="right")
         ax0.set_xlim(-0.7, n_init + 0.7)
         ax0.set_ylim(0, max(counts.max(), 1) * 1.30)
         ax0.legend(fontsize=15, loc="upper left")

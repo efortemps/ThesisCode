@@ -439,7 +439,7 @@ def _draw_phase(ax, sols, conv, lam, lam_bin, w_total, best_cut, n, n_init):
             mpatches.Patch(color=spin_cols[s % 20], label=f"spin {s}")
             for s in range(n)
         ],
-        loc="lower right", fontsize=8, ncol=max(1, n // 5), framealpha=0.90,
+        loc="lower right", fontsize=17, ncol=max(1, n // 5), framealpha=0.90,
     )
 
 # ── shared slider controller ───────────────────────────────────────────────────
@@ -611,7 +611,7 @@ def make_spectrum_figure(ctrl, eq_data, W, args):
     )
     ann_orig = ax_orig.annotate(
         "", xy=(1, 0), xytext=(1.6, margin),
-        fontsize=10, color=C_MIXED,
+        fontsize=22, color=C_MIXED,
         arrowprops=dict(arrowstyle="->", color=C_MIXED, lw=0.9),
     )
 
@@ -622,7 +622,7 @@ def make_spectrum_figure(ctrl, eq_data, W, args):
         xlabel="eigenvalue index $k$",
         ylabel=r"$\lambda_k \left(H(s)\right)$",
     )
-    ax_orig.legend(fontsize=11, loc="upper left")
+    ax_orig.legend(fontsize=17, loc="upper left")
 
     # ── equilibria panel ─────────────────────────────────────────────────
     reps     = pick_representatives(eq_data["rows"])
@@ -638,7 +638,7 @@ def make_spectrum_figure(ctrl, eq_data, W, args):
         e_lines.append(line)
         e_annots.append(ax_eq.annotate(
             "", xy=(1, 0), xytext=(1.6, margin),
-            fontsize=10, color=col,
+            fontsize=22, color=col,
             arrowprops=dict(arrowstyle="->", color=col, lw=0.9),
         ))
 
@@ -649,7 +649,7 @@ def make_spectrum_figure(ctrl, eq_data, W, args):
         xlabel="eigenvalue index $k$",
         ylabel=r"$\lambda_k \left(H(\tilde{s}^*)\right)$",
     )
-    ax_eq.legend(fontsize=11, loc="lower right")
+    ax_eq.legend(fontsize=22, loc="lower right")
 
     # ── slider ───────────────────────────────────────────────────────────
     lam_arr = ctrl.lam_arr
@@ -691,7 +691,7 @@ def make_spectrum_figure(ctrl, eq_data, W, args):
             s = np.array(
                 [1.0 if b == 1 else -1.0 for b in eq["bits"]], dtype=float
             )
-            # Fixed-point iteration: s* = tanh(-W s* / u0) = tanh(-λ W s*)
+            # Fixed-point iteration: s* = tanh(-λ W s*)
             for _ in range(15):
                 s = np.tanh(-(W @ s) * lam)
             ev_H = np.sort(np.linalg.eigvalsh(hessian_at_s(W, lam, s)))
