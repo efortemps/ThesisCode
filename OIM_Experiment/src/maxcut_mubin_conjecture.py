@@ -468,10 +468,10 @@ def make_figure3(results, args):
             f"std  = {mu_bins.std():.3f}\n"
             f"min  = {mu_bins.min():.3f}\n"
             f"max  = {mu_bins.max():.3f}",
-            transform=ax.transAxes, ha="right", va="top", fontsize=8.5,
+            transform=ax.transAxes, ha="right", va="top", fontsize=25,
             bbox=dict(boxstyle="round,pad=0.3", facecolor=WHITE,
                       edgecolor=GRAY, alpha=0.95))
-    ax.legend(fontsize=8.5)
+    ax.legend(fontsize=22, loc="upper left")
     _ax_style(ax,
               title=f"Distribution of $\\mu_{{\\rm bin}}$ over {n_graphs} graphs",
               xlabel="$\\mu_{\\rm bin}$ (exact, from $2^N$ enumeration)",
@@ -492,7 +492,7 @@ def make_figure3(results, args):
         ax.text(bar.get_x() + bar.get_width() / 2,
                 bar.get_height() + 0.5,
                 f"{val:.1f}%",
-                ha="center", va="bottom", fontsize=10, fontweight="bold")
+                ha="center", va="bottom", fontsize=25, fontweight="bold")
     ax.set_ylim(0, 115)
     ax.axhline(100, color=GRAY, linewidth=0.9, linestyle="--", alpha=0.7)
     _ax_style(ax,
@@ -502,7 +502,7 @@ def make_figure3(results, args):
 
     fig.suptitle(
         f"Summary Statistics",
-        color=BLACK, fontsize=11, fontweight="bold")
+        color=BLACK, fontsize=30, fontweight="bold")
     return fig
 
 def _lighten(hex_col, factor=0.6):

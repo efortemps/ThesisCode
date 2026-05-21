@@ -666,32 +666,28 @@ def make_figure4(args, n, edges, eq_data, sweep_data):
         if mu_vals[0] <= mu_star <= mu_vals[-1]:
             ax_bif_H.scatter([mu_star], [0.0], color=c, s=55, zorder=7,
                            edgecolors=BLACK, linewidths=0.7)
+            
+    ax_bif_H.set_xlabel(r"$\mu$", fontsize=35)
+    ax_bif_H.set_ylabel(r"$\lambda_{\min}(H)$", fontsize=35)
+    ax_bif_H.grid(True)
 
     # ── Colorbar ──────────────────────────────────────────────────────────────
     sm = plt.cm.ScalarMappable(cmap=cmap_bif, norm=norm_bif)
     sm.set_array([])
     cbar = fig.colorbar(sm, ax=ax_bif_H, pad=0.02, fraction=0.03, aspect=35)
-    cbar.set_label("Average cut value", fontsize=11)
-    cbar.ax.tick_params(labelsize=9)
 
     ax_bif_H.set_xlim(mu_vals[0], mu_vals[-1])
     ax_bif_H.set_ylim(bif_lo_H, bif_hi_H)
-    ax_bif_H.legend(fontsize=10, loc="lower right", framealpha=0.93)
-    _ax_style(ax_bif_H,
-              title=("Minimum Eigenvalue Analysis of Hessian $H(\\theta)$"),
-              xlabel="$\\mu$",
-              ylabel="$\\lambda_{\\min}(H(\\theta))$")
-    
-    # ── Override font sizes ───────────────────────────────────────────────────
-    ax_bif_H.title.set_fontsize(20)
-    ax_bif_H.xaxis.label.set_fontsize(16)
-    ax_bif_H.yaxis.label.set_fontsize(16)
-    ax_bif_H.tick_params(axis="both", labelsize=13)
+    ax_bif_H.legend(fontsize=30, loc="lower right", framealpha=0.93)
 
     # ── Colorbar label and ticks ──────────────────────────────────────────────
-    cbar.set_label("Average cut value", fontsize=14)
+    cbar.set_label("Average cut value", fontsize=30)
     cbar.ax.tick_params(labelsize=12)
 
+    fig.suptitle(
+        f"Hessian eigenvalue analysis vs $\\mu$ |  "
+        f"$\\mu_{{\\rm bin}}={mu_bin:.4f}$  ",
+        color=BLACK, fontsize=35, fontweight="bold")    
     return fig
 
 def main():
