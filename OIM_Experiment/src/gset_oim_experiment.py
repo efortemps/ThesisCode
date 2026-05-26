@@ -73,7 +73,7 @@ from OIM_Experiment.src.OIM_mu import OIMMaxCut
 # ── TikZ-like style ───────────────────────────────────────────────────────────
 plt.rcParams.update({
     "font.family":       "serif",
-    "font.size":         11,
+    "font.size":         20,
     "axes.edgecolor":    "black",
     "axes.linewidth":    0.8,
     "xtick.color":       "black",
@@ -98,16 +98,16 @@ C_BEST     = "#55a868"    # green — best-cut marker
 C_MU_LINE  = "#ffb74d"    # amber — current μ
 
 
-def _ax_style(ax, title="", xlabel="", ylabel="", titlesize=11):
+def _ax_style(ax, title="", xlabel="", ylabel="", titlesize=28):
     ax.set_facecolor(WHITE)
-    ax.tick_params(colors=BLACK, labelsize=10)
+    ax.tick_params(colors=BLACK, labelsize=15)
     for sp in ax.spines.values():
         sp.set_edgecolor(BLACK)
         sp.set_linewidth(0.8)
     ax.grid(True, color=LIGHT, linewidth=0.6, zorder=0)
     if title:  ax.set_title(title,  color=BLACK, fontsize=titlesize, pad=5)
-    if xlabel: ax.set_xlabel(xlabel, color=BLACK, fontsize=11)
-    if ylabel: ax.set_ylabel(ylabel, color=BLACK, fontsize=11)
+    if xlabel: ax.set_xlabel(xlabel, color=BLACK, fontsize=18)
+    if ylabel: ax.set_ylabel(ylabel, color=BLACK, fontsize=18)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -365,7 +365,7 @@ def make_figures(args, n, w_total,
     # ══════════════════════════════════════════════════════════════════════════
     # Figure 1 — Phase 1 scan
     # ══════════════════════════════════════════════════════════════════════════
-    fig1, axes1 = plt.subplots(2, 1, figsize=(13, 8), facecolor=WHITE)
+    fig1, axes1 = plt.subplots(2, 1, figsize=(15, 8.5), facecolor=WHITE)
     fig1.subplots_adjust(hspace=0.42, left=0.09, right=0.97,
                          top=0.90, bottom=0.09)
 
@@ -380,7 +380,7 @@ def make_figures(args, n, w_total,
     ax.fill_between(p1_mu, p1_bin, alpha=0.12, color=C_STABLE)
     ax.set_ylim(-0.05, 1.12)
     _ax_style(ax,
-              title=f"Phase 1 — binarisation fraction vs $\\mu$  |  "
+              title=f"Binarisation fraction vs $\\mu$  |  "
                     f"$N={n}$,  $n_{{\\rm init}}={args.n_init}$",
               xlabel="$\\mu$",
               ylabel="fraction of fully binarised trajectories")
@@ -400,21 +400,20 @@ def make_figures(args, n, w_total,
         ax.axhline(args.known_opt, color=BLACK, linewidth=1.3,
                    linestyle=":", label=f"known opt = {args.known_opt:.0f}")
     _ax_style(ax,
-              title="Phase 1 — cut quality vs $\\mu$  (scan up to first full binarisation)",
+              title="Cut quality vs $\\mu$  (scan up to first full binarisation)",
               xlabel="$\\mu$",
               ylabel="cut value")
-    ax.legend(fontsize=9, loc="lower right")
+    ax.legend(fontsize=15, loc="lower right")
 
     fig1.suptitle(
         f"OIM G-Set experiment  |  {stem}  |  $N={n}$  |  "
-        f"$W_{{\\rm tot}}={w_total:.0f}$  |  "
-        f"$\\hat{{\\mu}}_{{\\rm bin}}={mu_hat_bin:.4f}$",
-        color=BLACK, fontsize=12, fontweight="bold")
+        f"$W_{{\\rm tot}}={w_total:.0f}$  |  ",
+        color=BLACK, fontsize=28, fontweight="bold")
 
     # ══════════════════════════════════════════════════════════════════════════
     # Figure 2 — Phase 2 quality sweep
     # ══════════════════════════════════════════════════════════════════════════
-    fig2, axes2 = plt.subplots(2, 1, figsize=(13, 8), facecolor=WHITE)
+    fig2, axes2 = plt.subplots(2, 1, figsize=(15, 8.5), facecolor=WHITE)
     fig2.subplots_adjust(hspace=0.42, left=0.09, right=0.97,
                          top=0.90, bottom=0.09)
 
@@ -456,7 +455,7 @@ def make_figures(args, n, w_total,
               title="Phase 2 — cut quality vs $\\mu$  ($\\mu \\geq \\hat{\\mu}_{\\rm bin}$)",
               xlabel="$\\mu$",
               ylabel="cut value")
-    ax.legend(fontsize=9, loc="lower right")
+    ax.legend(fontsize=15, loc="lower right")
 
     # bottom: binarisation fraction
     ax = axes2[1]
@@ -471,14 +470,13 @@ def make_figures(args, n, w_total,
               title="Phase 2 — binarisation fraction vs $\\mu$",
               xlabel="$\\mu$",
               ylabel="bin. fraction")
-    ax.legend(fontsize=9, loc="lower right")
+    ax.legend(fontsize=15, loc="lower right")
 
     fig2.suptitle(
-        f"OIM G-Set experiment  |  {stem}  |  $N={n}$  |  "
-        f"$W_{{\\rm tot}}={w_total:.0f}$  |  "
+        f"OIM G-Set experiment  |  {stem}  | "
         f"best cut found = {best_cut:.0f}"
         + (f"  /  opt = {args.known_opt:.0f}" if args.known_opt else ""),
-        color=BLACK, fontsize=12, fontweight="bold")
+        color=BLACK, fontsize=28, fontweight="bold")
     
     return fig1, fig2
 

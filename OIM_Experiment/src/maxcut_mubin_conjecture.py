@@ -60,24 +60,44 @@ import matplotlib.lines as mlines
 import matplotlib.colors as mcolors
 import matplotlib.gridspec as gridspec
 
+# ── Font size constants ────────────────────────────────────────────────────────
+FS_TITLE  = 22
+FS_LABEL  = 18
+FS_TICK   = 18
+FS_LEGEND = 18
+FS_TEXT   = 18
+FS_ANNOT  = 18
+
+LW_AXES  = 1.4
+LW_GRID  = 0.8
+TICK_LEN = 7
+TICK_W   = 1.3
+
 from OIM_Experiment.src.OIM_mu import OIMMaxCut
+
 
 # ── Global style ──────────────────────────────────────────────────────────────
 plt.rcParams.update({
     "font.family"      : "serif",
-    "font.size"        : 10,
+    "font.size"        : FS_TEXT,
+    "axes.titlesize"   : FS_TITLE,
+    "axes.labelsize"   : FS_LABEL,
+    "xtick.labelsize"  : FS_TICK,
+    "ytick.labelsize"  : FS_TICK,
+    "legend.fontsize"  : FS_LEGEND,
     "axes.edgecolor"   : "black",
-    "axes.linewidth"   : 0.8,
+    "axes.linewidth"   : LW_AXES,
     "xtick.color"      : "black",
     "ytick.color"      : "black",
     "text.color"       : "black",
     "figure.facecolor" : "white",
     "axes.facecolor"   : "white",
-    "legend.framealpha": 0.92,
+    "legend.framealpha": 0.95,
     "legend.edgecolor" : "#b0b0b0",
     "legend.facecolor" : "white",
     "legend.labelcolor": "black",
 })
+
 
 WHITE    = "#ffffff"
 BLACK    = "#000000"
@@ -91,17 +111,35 @@ C_AMBER  = "#ffb74d"
 C_PURPLE = "#8172b2"
 
 
-def _ax_style(ax, title="", xlabel="", ylabel="", titlesize=10):
+def _ax_style(ax, title="", xlabel="", ylabel="", titlesize=FS_TITLE):
     ax.set_facecolor(WHITE)
-    ax.tick_params(colors=BLACK, labelsize=9)
+    ax.tick_params(
+        axis="both", which="major",
+        colors=BLACK, labelsize=FS_TICK,
+        width=TICK_W, length=TICK_LEN,
+        direction="in", top=True, right=True,
+    )
+    ax.minorticks_on()
+    ax.tick_params(
+        axis="both", which="minor",
+        colors=BLACK, width=1.0, length=4,
+        direction="in", top=True, right=True,
+    )
     for sp in ax.spines.values():
-        sp.set_edgecolor(BLACK); sp.set_linewidth(0.8)
-    ax.grid(True, color=LIGHT, linewidth=0.5, zorder=0)
-    if title:  ax.set_title(title,  color=BLACK, fontsize=titlesize,
-                             fontweight="bold", pad=5)
-    if xlabel: ax.set_xlabel(xlabel, color=BLACK, fontsize=10)
-    if ylabel: ax.set_ylabel(ylabel, color=BLACK, fontsize=10)
-
+        sp.set_edgecolor(BLACK)
+        sp.set_linewidth(LW_AXES)
+    ax.grid(True, color=LIGHT, linewidth=LW_GRID, zorder=0)
+    if title:
+        ax.set_title(title,  color=BLACK, fontsize=titlesize,
+                     fontweight="bold", pad=12)
+    if xlabel:
+        ax.set_xlabel(xlabel, color=BLACK, fontsize=FS_LABEL, labelpad=10)
+    if ylabel:
+        ax.set_ylabel(ylabel, color=BLACK, fontsize=FS_LABEL, labelpad=10)
+    leg = ax.get_legend()
+    if leg is not None:
+        for txt in leg.get_texts():
+            txt.set_fontsize(FS_LEGEND)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Graph generation
@@ -294,8 +332,8 @@ def make_figure1(results, args):
     n_graphs = len(results)
     n_opt    = np.array([r["n_opt_bin"] for r in results])
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6), facecolor=WHITE)
-    fig.subplots_adjust(wspace=0.35, left=0.08, right=0.97, top=0.87, bottom=0.13)
+    fig, axes = plt.subplots(1, 2, figsize=(20, 8), facecolor=WHITE)
+    fig.subplots_adjust(wspace=0.30, left=0.08, right=0.98, top=0.88, bottom=0.16)
 
     # ── Left: histogram ──────────────────────────────────────────────────────
     ax      = axes[0]
@@ -310,7 +348,7 @@ def make_figure1(results, args):
             ax.text(bar.get_x() + bar.get_width() / 2,
                     bar.get_height() + 0.3,
                     f"{cnt}\n({100*cnt/n_graphs:.0f}%)",
-                    ha="center", va="bottom", fontsize=8, color=BLACK)
+                    ha="center", va="bottom", fontsize=FS_ANNOT, color=BLACK)
 
     ax.set_xticks(np.arange(n_init + 1))
     ax.set_xlim(-0.7, n_init + 0.7)
@@ -324,9 +362,9 @@ def make_figure1(results, args):
         mlines.Line2D([0], [0], color=C_AMBER, lw=2, ls="--",
                       label=f"mean = {np.mean(n_opt):.2f}"),
     ]
-    ax.legend(handles=legend_patches, fontsize=8.5, loc="upper left")
+    ax.legend(handles=legend_patches, fontsize=FS_LEGEND, loc="upper left")
     _ax_style(ax,
-              title=(f"ICs (out of {n_init}) reaching the global Max-Cut optimum\n"),
+              title=(f"ICs (out of {n_init}) reaching the glob.opt."),
               xlabel=f"# ICs converging to global optimum (out of {n_init})",
               ylabel="# graphs")
 
@@ -342,12 +380,12 @@ def make_figure1(results, args):
     ax.text(0.97, 0.05,
             f"P(at least 1 IC hits opt) = {cdf[1]*100:.1f}%\n"
             f"P(ALL {n_init} ICs hit opt)  = {cdf[n_init]*100:.1f}%\n",
-            transform=ax.transAxes, ha="right", va="bottom", fontsize=9,
+            transform=ax.transAxes, ha="right", va="bottom", fontsize=FS_ANNOT,
             bbox=dict(boxstyle="round,pad=0.35", facecolor=WHITE,
                       edgecolor=GRAY, alpha=0.95))
-    ax.legend(fontsize=9)
+    ax.legend(fontsize=FS_LEGEND)
     _ax_style(ax,
-              title=(f"Cumulative: P(# ICs >= k reaching global optimum)"),
+              title=(f"P(# ICs >= k reaching glob.opt.)"),
               xlabel="k (minimum # ICs that find the optimum)",
               ylabel="fraction of graphs")
     return fig
@@ -380,9 +418,9 @@ def make_figure2(results, args, n_show=6):
     ncols = 3
     nrows = (len(show_idx) + ncols - 1) // ncols
     fig, axes = plt.subplots(nrows, ncols,
-                             figsize=(18, 5.5 * nrows), facecolor=WHITE)
-    fig.subplots_adjust(hspace=0.50, wspace=0.38,
-                        left=0.07, right=0.97, top=0.92, bottom=0.08)
+                             figsize=(24, 7.5 * nrows), facecolor=WHITE)
+    fig.subplots_adjust(hspace=0.48, wspace=0.32,
+                        left=0.07, right=0.98, top=0.92, bottom=0.08)
     axes_flat = axes.ravel() if nrows > 1 else list(axes)
 
     for plot_idx, g_idx in enumerate(show_idx):
@@ -418,17 +456,17 @@ def make_figure2(results, args, n_show=6):
                 f"$n_{{\\rm opt}}@\\mu_{{\\rm bin}} = {r['n_opt_bin']}/{args.n_init}$\n"
                 f"opt left of line: {frac_left*100:.0f}%",
                 transform=ax.transAxes, ha="right", va="top",
-                fontsize=8.5, fontweight="bold", color=text_col,
+                fontsize=18, fontweight="bold", color=text_col,
                 bbox=dict(boxstyle="round,pad=0.3", facecolor=WHITE,
                           edgecolor=GRAY, alpha=0.92))
 
-        ax.legend(fontsize=7, loc="lower right")
+        ax.legend(fontsize=20, loc="lower right")
         _ax_style(ax,
                   title=(f"Graph {g_idx+1}  |E|={int(r['w_total'])}  "
                          f"opt cut={r['best_cut']:.0f}"),
                   xlabel="$\\lambda_{\\max}(D(\\phi^*))$",
                   ylabel="$H(\\phi^*)$",
-                  titlesize=9)
+                  titlesize=24)
 
     for i in range(len(show_idx), len(axes_flat)):
         axes_flat[i].set_visible(False)
@@ -436,7 +474,7 @@ def make_figure2(results, args, n_show=6):
     fig.suptitle(
         f"Spectral fingerprint: $\\lambda_{{\\max}}(D)$ vs $H(\\phi^*)$ "
         f"for all $2^N$ equilibria",
-        color=BLACK, fontsize=11, fontweight="bold")
+        color=BLACK, fontsize=FS_TITLE, fontweight="bold")
     return fig
 
 
@@ -453,25 +491,23 @@ def make_figure3(results, args):
     approx  = np.array([max(r["cuts_bin"]) / max(r["best_cut"], 1e-9)
                          for r in results])
 
-    fig, axes = plt.subplots(1, 2, figsize=(17, 5.5), facecolor=WHITE)
-    fig.subplots_adjust(wspace=0.38, left=0.07, right=0.97,
-                        top=0.87, bottom=0.13)
+    fig, axes = plt.subplots(1, 2, figsize=(20, 8), facecolor=WHITE)
+    fig.subplots_adjust(wspace=0.30, left=0.08, right=0.98,
+                        top=0.88, bottom=0.16)
 
     # ── (a) mu_bin_exact distribution ────────────────────────────────────────
     ax = axes[0]
     ax.hist(mu_bins, bins=15, color=C_BLUE, alpha=0.72,
             edgecolor=BLACK, linewidth=0.5)
-    ax.axvline(mu_bins.mean(), color=C_AMBER, linewidth=2.0, linestyle="--",
-               label=f"mean = {mu_bins.mean():.3f}")
     ax.text(0.97, 0.97,
             f"mean = {mu_bins.mean():.3f}\n"
             f"std  = {mu_bins.std():.3f}\n"
             f"min  = {mu_bins.min():.3f}\n"
             f"max  = {mu_bins.max():.3f}",
-            transform=ax.transAxes, ha="right", va="top", fontsize=25,
+            transform=ax.transAxes, ha="right", va="top", fontsize=FS_ANNOT,
             bbox=dict(boxstyle="round,pad=0.3", facecolor=WHITE,
                       edgecolor=GRAY, alpha=0.95))
-    ax.legend(fontsize=22, loc="upper left")
+    ax.legend(fontsize=FS_LEGEND, loc="upper left")
     _ax_style(ax,
               title=f"Distribution of $\\mu_{{\\rm bin}}$ over {n_graphs} graphs",
               xlabel="$\\mu_{\\rm bin}$ (exact, from $2^N$ enumeration)",
@@ -492,17 +528,13 @@ def make_figure3(results, args):
         ax.text(bar.get_x() + bar.get_width() / 2,
                 bar.get_height() + 0.5,
                 f"{val:.1f}%",
-                ha="center", va="bottom", fontsize=25, fontweight="bold")
+                ha="center", va="bottom", fontsize=FS_ANNOT, fontweight="bold")
     ax.set_ylim(0, 115)
     ax.axhline(100, color=GRAY, linewidth=0.9, linestyle="--", alpha=0.7)
     _ax_style(ax,
-              title=(f"Graph proportions reaching global optimum"),
+              title=(f"Graph proportions reaching glob.opt."),
               xlabel="",
               ylabel="% of graphs")
-
-    fig.suptitle(
-        f"Summary Statistics",
-        color=BLACK, fontsize=30, fontweight="bold")
     return fig
 
 def _lighten(hex_col, factor=0.6):
@@ -672,7 +704,7 @@ def make_figure5(results: list, args) -> plt.Figure:
     metrics = [graph_structural_metrics(results[i]) for i in col_idxs]
 
     # ── NEW LAYOUT (split figure) ─────────────────────────────────────────────
-    fig = plt.figure(figsize=(26, 22), facecolor=WHITE)
+    fig = plt.figure(figsize=(30, 24), facecolor=WHITE)
 
     outer = gridspec.GridSpec(2, 1, figure=fig,
                               height_ratios=[3.2, 1.8],
@@ -718,8 +750,8 @@ def make_figure5(results: list, args) -> plt.Figure:
 
         if N <= 12:
             labels = [str(deg_order[i]) for i in range(N)]
-            ax0.set_xticks(range(N)); ax0.set_xticklabels(labels, fontsize=5.5)
-            ax0.set_yticks(range(N)); ax0.set_yticklabels(labels, fontsize=5.5)
+            ax0.set_xticks(range(N)); ax0.set_xticklabels(labels, fontsize=16)
+            ax0.set_yticks(range(N)); ax0.set_yticklabels(labels, fontsize=16)
         else:
             ax0.set_xticks([]); ax0.set_yticks([])
 
@@ -730,11 +762,11 @@ def make_figure5(results: list, args) -> plt.Figure:
         ax0.set_title(
             f"{role_label}  —  Graph {g_idx+1}\n"
             f"$n_{{\\rm opt}}@\\mu_{{\\rm bin}} = {m['n_opt_bin']}/{n_init}$",
-            color=hcol, fontsize=9, fontweight="bold", pad=4)
+            color=hcol, fontsize=22, fontweight="bold", pad=8)
 
         if col == n_cols - 1:
             cb = fig.colorbar(im, ax=ax0, fraction=0.046, pad=0.04)
-            cb.ax.tick_params(labelsize=6)
+            cb.ax.tick_params(labelsize=18)
 
         # ── Row 1: Degree ───────────────────────────────────────────────────
         ax1 = fig.add_subplot(gs_top[1, col])
@@ -749,9 +781,9 @@ def make_figure5(results: list, args) -> plt.Figure:
         ax1.axvline(m["deg_mean"], color=C_AMBER, linestyle="--",
                     label=f"{m['deg_mean']:.1f}")
 
-        ax1.set_title("Degree distribution", fontsize=8.5, fontweight="bold")
+        ax1.set_title("Degree distribution", fontsize=22, fontweight="bold")
         ax1.grid(True, axis="y", color=LIGHT, linewidth=0.5)
-        ax1.legend(fontsize=7)
+        ax1.legend(fontsize=18)
 
         # ── Row 2: Spectrum ─────────────────────────────────────────────────
         ax2 = fig.add_subplot(gs_top[2, col])
@@ -765,7 +797,7 @@ def make_figure5(results: list, args) -> plt.Figure:
 
         ax2.scatter([1], [m["fiedler"]], color=C_AMBER, zorder=5)
 
-        ax2.set_title("Laplacian spectrum", fontsize=8.5, fontweight="bold")
+        ax2.set_title("Laplacian spectrum", fontsize=22, fontweight="bold")
         ax2.grid(True, color=LIGHT)
 
         # ── Row 3: PAPER-STYLE PANEL ────────────────────────────────────────
@@ -776,7 +808,7 @@ def make_figure5(results: list, args) -> plt.Figure:
         # ---- Title bar (paper style) ----
         ax3.text(0.0, 1.02,
                  "Key structural metrics",
-                 fontsize=9.5, fontweight="bold",
+                 fontsize=22, fontweight="bold",
                  color=hcol, ha="left", va="bottom",
                  transform=ax3.transAxes)
 
@@ -824,18 +856,18 @@ def make_figure5(results: list, args) -> plt.Figure:
 
             if is_header:
                 ax3.text(0.0, y, left,
-                         fontsize=8.5, fontweight="bold",
+                         fontsize=19, fontweight="bold",
                          color=hcol, ha="left", va="center",
                          transform=ax3.transAxes)
             else:
                 ax3.text(0.0, y, left,
-                         fontsize=8.2, color=BLACK,
+                         fontsize=17, color=BLACK,
                          ha="left", va="center",
                          transform=ax3.transAxes)
 
                 if right:
                     ax3.text(0.55, y, right,
-                             fontsize=8.2, color=BLACK,
+                             fontsize=17, color=BLACK,
                              ha="left", va="center",
                              transform=ax3.transAxes)
 
@@ -845,7 +877,7 @@ def make_figure5(results: list, args) -> plt.Figure:
         for spine in ax3.spines.values():
             spine.set_visible(True)
             spine.set_edgecolor(LIGHT)
-            spine.set_linewidth(0.8)
+            spine.set_linewidth(1.2)
 
     # ── Separator ───────────────────────────────────────────────────────────
     x_sep = (gs_top[0, 3].get_position(fig).x1 +
@@ -858,7 +890,7 @@ def make_figure5(results: list, args) -> plt.Figure:
     # ── Title ───────────────────────────────────────────────────────────────
     fig.suptitle(
         f"Figure 5 — Structural comparison (worst vs best)",
-        fontsize=12, fontweight="bold")
+        fontsize=FS_TITLE, fontweight="bold")
 
     return fig
 
@@ -899,7 +931,7 @@ def main():
                            ("structure",  fig5)]:
             for ext in ("pdf", "png"):
                 fname = f"oim_conjecture_{name}_{tag}.{ext}"
-                fig.savefig(fname, bbox_inches="tight", dpi=150)
+                fig.savefig(fname, bbox_inches="tight", dpi=300)
                 print(f"  Saved: {fname}")
     else:
         plt.show()

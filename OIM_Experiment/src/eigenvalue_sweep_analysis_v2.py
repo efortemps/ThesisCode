@@ -655,7 +655,6 @@ def make_figure4(args, n, edges, eq_data, sweep_data):
                    label=f"$\\mu_{{\\rm bin}}={mu_bin:.3f}$")
 
     n_unique   = len(unique_lmax)
-    ann_y_vals_H = np.linspace(bif_lo_H * 0.95, bif_lo_H * 0.05, n_unique)
 
     for idx, (lm, cnt, H_mean, cut_mean) in enumerate(
             zip(unique_lmax, counts_lmax, avg_H_per_lmax, avg_cut_per_lmax)):
@@ -669,6 +668,7 @@ def make_figure4(args, n, edges, eq_data, sweep_data):
             
     ax_bif_H.set_xlabel(r"$\mu$", fontsize=35)
     ax_bif_H.set_ylabel(r"$\lambda_{\min}(H)$", fontsize=35)
+    ax_bif_H.tick_params(axis='both', labelsize=20)
     ax_bif_H.grid(True)
 
     # ── Colorbar ──────────────────────────────────────────────────────────────
@@ -682,7 +682,7 @@ def make_figure4(args, n, edges, eq_data, sweep_data):
 
     # ── Colorbar label and ticks ──────────────────────────────────────────────
     cbar.set_label("Average cut value", fontsize=30)
-    cbar.ax.tick_params(labelsize=12)
+    cbar.ax.tick_params(labelsize=20)
 
     fig.suptitle(
         f"Hessian eigenvalue analysis vs $\\mu$ |  "

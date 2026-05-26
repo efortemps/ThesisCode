@@ -39,6 +39,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.patches import FancyBboxPatch
 from matplotlib.widgets import Slider
+from matplotlib.ticker import MultipleLocator
 
 from OIM_Experiment.src.OIM_mu import OIMMaxCut
 from OIM_Experiment.src.graph_utils import read_graph
@@ -563,8 +564,8 @@ class SharedMuController:
 
 # ── shared layout constants ──────────────────────────────────────────────────
 FIGSIZE   = (18, 8.5)
-MAIN_AX   = (0.10, 0.13, 0.80, 0.78)
-SLIDER_AX = (0.10, 0.035, 0.80, 0.030)
+MAIN_AX   = (0.10, 0.18, 0.80, 0.73)
+SLIDER_AX = (0.10, 0.05, 0.80, 0.030)
 
 
 # ── Figure 1: phase dynamics + styled table ─────────────────────────────────
@@ -701,8 +702,6 @@ def make_phase_figure(ctrl, results, eq_data, args):
     return fig_phase, fig_table
 
 
-
-# ── Figure 2: Jacobian / D-matrix spectra ────────────────────────────────────
 # ── Figure 2: Jacobian / D-matrix spectra ───────────────────────────────────
 def make_spectrum_figure(ctrl, eq_data, args):
     mu_arr   = ctrl.mu_arr
@@ -743,24 +742,7 @@ def make_spectrum_figure(ctrl, eq_data, args):
         0.4
     )
 
-    # ── stable / unstable shading ───────────────────────────────────────────
-    ax_hspec.fill_between(
-        [0.5, n + 0.5],
-        0,
-        ev_h_hi + 2 * margin_h,
-        color=C_STABLE,
-        alpha=0.10,
-        zorder=0
-    )
-
-    ax_hspec.fill_between(
-        [0.5, n + 0.5],
-        ev_h_lo - 2 * margin_h,
-        0,
-        color=C_UNSTABLE,
-        alpha=0.10,
-        zorder=0
-    )
+    # ── stable / unstable limit ───────────────────────────────────────────
 
     ax_hspec.axhline(
         0,
@@ -821,11 +803,17 @@ def make_spectrum_figure(ctrl, eq_data, args):
     # ── axes formatting ─────────────────────────────────────────────────────
     ax_hspec.set_xticks(xidx)
 
-    ax_hspec.set_xlim(0.5, n + 0.5)
+    # ── axes formatting ─────────────────────────────────────────────────────
+    ax_hspec.set_xticks(xidx)
 
-    ax_hspec.set_ylim(
-        ev_h_lo - 3.5 * margin_h,
-        ev_h_hi + 2 * margin_h
+    # y-axis ticks every 5 units
+    ax_hspec.yaxis.set_major_locator(MultipleLocator(5))
+
+    # Tick label styling
+    ax_hspec.tick_params(
+        axis='both',
+        labelsize=25,
+        colors=BLACK
     )
 
     ax_hspec.legend(
