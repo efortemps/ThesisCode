@@ -762,11 +762,11 @@ def make_figure5(results: list, args) -> plt.Figure:
         ax0.set_title(
             f"{role_label}  —  Graph {g_idx+1}\n"
             f"$n_{{\\rm opt}}@\\mu_{{\\rm bin}} = {m['n_opt_bin']}/{n_init}$",
-            color=hcol, fontsize=22, fontweight="bold", pad=8)
+            color=hcol, fontsize=15, fontweight="bold", pad=8)
 
         if col == n_cols - 1:
             cb = fig.colorbar(im, ax=ax0, fraction=0.046, pad=0.04)
-            cb.ax.tick_params(labelsize=18)
+            cb.ax.tick_params(labelsize=10)
 
         # ── Row 1: Degree ───────────────────────────────────────────────────
         ax1 = fig.add_subplot(gs_top[1, col])
@@ -783,7 +783,7 @@ def make_figure5(results: list, args) -> plt.Figure:
 
         ax1.set_title("Degree distribution", fontsize=22, fontweight="bold")
         ax1.grid(True, axis="y", color=LIGHT, linewidth=0.5)
-        ax1.legend(fontsize=18)
+        ax1.legend(fontsize=10)
 
         # ── Row 2: Spectrum ─────────────────────────────────────────────────
         ax2 = fig.add_subplot(gs_top[2, col])
@@ -797,7 +797,7 @@ def make_figure5(results: list, args) -> plt.Figure:
 
         ax2.scatter([1], [m["fiedler"]], color=C_AMBER, zorder=5)
 
-        ax2.set_title("Laplacian spectrum", fontsize=22, fontweight="bold")
+        ax2.set_title("Laplacian spectrum", fontsize=12, fontweight="bold")
         ax2.grid(True, color=LIGHT)
 
         # ── Row 3: PAPER-STYLE PANEL ────────────────────────────────────────
@@ -805,35 +805,29 @@ def make_figure5(results: list, args) -> plt.Figure:
         ax3.axis("off")
         ax3.set_facecolor(WHITE)
 
-        # ---- Title bar (paper style) ----
         ax3.text(0.0, 1.02,
                  "Key structural metrics",
-                 fontsize=22, fontweight="bold",
+                 fontsize=15, fontweight="bold",
                  color=hcol, ha="left", va="bottom",
                  transform=ax3.transAxes)
 
-        # ---- Sections ----
         lines = [
             ("Graph", ""),
             (f"N = {N}", f"|E| = {m['n_edges']}"),
             (f"density = {m['density']:.3f}", f"W = {m['w_total']:.0f}"),
-
             ("", ""),
             ("Degree", ""),
             (f"{m['deg_mean']:.2f} ± {m['deg_std']:.2f}",
              f"[{m['deg_min']}, {m['deg_max']}]"),
-
             ("", ""),
             ("Structure", ""),
             (f"Bipartite: {'YES' if m['is_bipartite'] else 'NO'}",
              f"ratio = {m['bipart_ratio']:.3f}"),
             (f"Frustration = {m['frustration_index']:.3f}", ""),
-
             ("", ""),
             ("Spectrum", ""),
             (f"λ₂ = {m['fiedler']:.3f}",
              f"λ_max(L) = {m['lap_lambda_max']:.3f}"),
-
             ("", ""),
             ("Dynamics", ""),
             (f"μ_bin = {m['mu_bin_exact']:.3f}",
@@ -843,7 +837,6 @@ def make_figure5(results: list, args) -> plt.Figure:
             (f"IC→opt = {m['n_opt_bin']}/{m['n_init']}", ""),
         ]
 
-        # ---- Render text grid (clean paper look) ----
         y = 0.95
         dy = 0.055
 
@@ -856,24 +849,23 @@ def make_figure5(results: list, args) -> plt.Figure:
 
             if is_header:
                 ax3.text(0.0, y, left,
-                         fontsize=19, fontweight="bold",
+                         fontsize=14, fontweight="bold",
                          color=hcol, ha="left", va="center",
                          transform=ax3.transAxes)
             else:
                 ax3.text(0.0, y, left,
-                         fontsize=17, color=BLACK,
+                         fontsize=14, color=BLACK,
                          ha="left", va="center",
                          transform=ax3.transAxes)
 
                 if right:
                     ax3.text(0.55, y, right,
-                             fontsize=17, color=BLACK,
+                             fontsize=14, color=BLACK,
                              ha="left", va="center",
                              transform=ax3.transAxes)
 
             y -= dy
 
-        # subtle box around panel
         for spine in ax3.spines.values():
             spine.set_visible(True)
             spine.set_edgecolor(LIGHT)
@@ -887,10 +879,60 @@ def make_figure5(results: list, args) -> plt.Figure:
                              transform=fig.transFigure,
                              linestyle="--", color=BLACK, alpha=0.4))
 
-    # ── Title ───────────────────────────────────────────────────────────────
-    fig.suptitle(
-        f"Figure 5 — Structural comparison (worst vs best)",
-        fontsize=FS_TITLE, fontweight="bold")
+    # ── NEW: companion figure — worst #1 vs best adjacency matrices ──────────
+    fig_adj = _make_adjacency_comparison(results, worst_idxs[0], best_idx, metrics)
+
+    return fig, fig_adj          # ← now returns a tuple (fig5, fig_adj)
+
+
+# ── NEW HELPER ────────────────────────────────────────────────────────────────
+def _make_adjacency_comparison(results, worst_idx: int, best_idx: int,
+                                metrics: list) -> plt.Figure:
+    """
+    Stand-alone figure: adjacency matrices of the single worst graph (col 0)
+    and the best graph (col 4) side by side, no tick labels, matching
+    visual style to make_figure5.
+    """
+    # metrics list is indexed by column position (0 = worst #1, 4 = best)
+    entries = [
+        (worst_idx, "worst", metrics[0],  "✗ WORST #1"),
+        (best_idx,  "best",  metrics[-1], "★ BEST"),
+    ]
+
+    col_header_colours = {"worst": C_RED, "best": C_GREEN}
+
+    fig, axes = plt.subplots(1, 2, figsize=(10, 5), facecolor=WHITE)
+    fig.subplots_adjust(wspace=0.12, left=0.04, right=0.96, top=0.88, bottom=0.04)
+
+    for ax, (g_idx, role, m, role_label) in zip(axes, entries):
+        r         = results[g_idx]
+        W         = r["W"]
+        N         = r["N"]
+        hcol      = col_header_colours[role]
+
+        deg_order = np.argsort(-m["degrees"])
+        W_sorted  = W[np.ix_(deg_order, deg_order)]
+
+        ax.imshow(W_sorted, cmap="Blues", vmin=0, vmax=1,
+                  interpolation="nearest", aspect="equal")
+
+        # grid lines only — no tick labels
+        for k in range(N + 1):
+            ax.axhline(k - 0.5, color=LIGHT, linewidth=0.4)
+            ax.axvline(k - 0.5, color=LIGHT, linewidth=0.4)
+
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+        for sp in ax.spines.values():
+            sp.set_edgecolor(hcol)
+            sp.set_linewidth(2.5 if role == "best" else 1.5)
+
+        ax.set_title(
+            f"{role_label}  —  Graph {g_idx + 1}\n"
+            f"$n_{{\\rm opt}}@\\mu_{{\\rm bin}} = {m['n_opt_bin']}/{m['n_init']}$",
+            color=hcol, fontsize=13, fontweight="bold", pad=8
+        )
 
     return fig
 
