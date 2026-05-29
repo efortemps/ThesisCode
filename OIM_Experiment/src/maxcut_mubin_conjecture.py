@@ -931,7 +931,7 @@ def _make_adjacency_comparison(results, worst_idx: int, best_idx: int,
         ax.set_title(
             f"{role_label}  —  Graph {g_idx + 1}\n"
             f"$n_{{\\rm opt}}@\\mu_{{\\rm bin}} = {m['n_opt_bin']}/{m['n_init']}$",
-            color=hcol, fontsize=13, fontweight="bold", pad=8
+            color=hcol, fontsize=22, fontweight="bold", pad=8
         )
 
     return fig
