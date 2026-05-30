@@ -811,23 +811,37 @@ def make_figure5(results: list, args) -> plt.Figure:
                  color=hcol, ha="left", va="bottom",
                  transform=ax3.transAxes)
 
+        # ── INSERTION: compute Var(d) and Var(d) / d_bar^2 ──────────────────
+        deg_var       = float(np.var(m["degrees"]))          # Var(d)
+        deg_mean_sq   = m["deg_mean"] ** 2                   # d_bar^2
+        deg_rel_var   = deg_var / deg_mean_sq if deg_mean_sq > 0 else 0.0
+        # ────────────────────────────────────────────────────────────────────
+
         lines = [
             ("Graph", ""),
             (f"N = {N}", f"|E| = {m['n_edges']}"),
             (f"density = {m['density']:.3f}", f"W = {m['w_total']:.0f}"),
+
             ("", ""),
             ("Degree", ""),
             (f"{m['deg_mean']:.2f} ± {m['deg_std']:.2f}",
              f"[{m['deg_min']}, {m['deg_max']}]"),
+            # ── INSERTION: new Var(d) row ────────────────────────────────────
+            (f"Var(d) = {deg_var:.3f}",
+             f"Var(d)/d\u0305\u00b2 = {deg_rel_var:.3f}"),
+            # ─────────────────────────────────────────────────────────────────
+
             ("", ""),
             ("Structure", ""),
             (f"Bipartite: {'YES' if m['is_bipartite'] else 'NO'}",
              f"ratio = {m['bipart_ratio']:.3f}"),
             (f"Frustration = {m['frustration_index']:.3f}", ""),
+
             ("", ""),
             ("Spectrum", ""),
             (f"λ₂ = {m['fiedler']:.3f}",
              f"λ_max(L) = {m['lap_lambda_max']:.3f}"),
+
             ("", ""),
             ("Dynamics", ""),
             (f"μ_bin = {m['mu_bin_exact']:.3f}",
@@ -879,10 +893,10 @@ def make_figure5(results: list, args) -> plt.Figure:
                              transform=fig.transFigure,
                              linestyle="--", color=BLACK, alpha=0.4))
 
-    # ── NEW: companion figure — worst #1 vs best adjacency matrices ──────────
+    # ── companion figure — worst #1 vs best adjacency matrices ──────────────
     fig_adj = _make_adjacency_comparison(results, worst_idxs[0], best_idx, metrics)
 
-    return fig, fig_adj          # ← now returns a tuple (fig5, fig_adj)
+    return fig, fig_adj
 
 
 # ── NEW HELPER ────────────────────────────────────────────────────────────────
@@ -936,6 +950,88 @@ def _make_adjacency_comparison(results, worst_idx: int, best_idx: int,
 
     return fig
 
+def make_figure_variance_convergence(results: list, args) -> plt.Figure:
+    """
+    Scatter plot: degree variance Var(d) vs. convergence rate (IC→opt, %)
+    across all n_graphs instances, sorted by Var(d) ascending.
+    Follows the visual conventions of the rest of the file.
+    """
+    n_init  = args.n_init
+    n_graphs = len(results)
+
+    # ── Compute per-graph quantities ─────────────────────────────────────────
+    var_d       = np.array([np.var(results[i]["W"].sum(axis=1))
+                            for i in range(n_graphs)])
+    conv_rate   = np.array([results[i]["n_opt_bin"] / n_init * 100.0
+                            for i in range(n_graphs)])
+    n_opt_arr   = np.array([results[i]["n_opt_bin"] for i in range(n_graphs)])
+
+    # Sort by Var(d) ascending
+    order       = np.argsort(var_d)
+    var_sorted  = var_d[order]
+    conv_sorted = conv_rate[order]
+    nopt_sorted = n_opt_arr[order]
+
+    # ── Colour coding: red = 0 ICs, green = all ICs, blue = partial ─────────
+    colours = np.where(nopt_sorted == 0,      C_RED,
+            np.where(nopt_sorted == n_init,  C_GREEN,
+                                            C_BLUE))
+
+    # ── Trend line (linear regression over all points) ───────────────────────
+    coeffs   = np.polyfit(var_sorted, conv_sorted, 1)
+    trend_x  = np.linspace(var_sorted.min(), var_sorted.max(), 300)
+    trend_y  = np.polyval(coeffs, trend_x)
+
+    # ── Pearson correlation ──────────────────────────────────────────────────
+    corr     = float(np.corrcoef(var_sorted, conv_sorted)[0, 1])
+
+    # ── Figure ───────────────────────────────────────────────────────────────
+    fig, ax = plt.subplots(1, 1, figsize=(12, 8), facecolor=WHITE)
+    fig.subplots_adjust(left=0.11, right=0.97, top=0.88, bottom=0.13)
+
+    # Scatter
+    ax.scatter(var_sorted, conv_sorted,
+            c=colours, s=80, zorder=4,
+            edgecolors=BLACK, linewidths=0.6, alpha=0.88)
+
+    # Trend line
+    ax.plot(trend_x, trend_y,
+            color=C_AMBER, linewidth=2.0, linestyle="--", zorder=3,
+            label=f"Linear fit  (r = {corr:.2f})")
+
+    # 100 % and 0 % reference lines
+    ax.axhline(100.0, color=LIGHT, linewidth=1.0, linestyle=":", zorder=1)
+    ax.axhline(  0.0, color=LIGHT, linewidth=1.0, linestyle=":", zorder=1)
+
+    # Annotation box: summary stats
+    ax.text(0.92, 0.5,
+            f"Var(d) range: [{var_sorted.min():.2f}, {var_sorted.max():.2f}]\n"
+            f"Conv. range:  [{conv_sorted.min():.0f} %, {conv_sorted.max():.0f} %]",
+            transform=ax.transAxes,
+            ha="right", va="top", fontsize=17,
+            bbox=dict(boxstyle="round,pad=0.35", facecolor=WHITE,
+                    edgecolor=GRAY, alpha=0.95))
+
+    # Legend patches
+    legend_handles = [
+        mpatches.Patch(color=C_GREEN,  label=f"All {n_init} ICs reach optimum"),
+        mpatches.Patch(color=C_BLUE,   label=f"1–{n_init-1} ICs reach optimum"),
+        mpatches.Patch(color=C_RED,    label="0 ICs reach optimum"),
+        mlines.Line2D([0], [0], color=C_AMBER, lw=2, ls="--",
+                    label=f"Linear fit  (r = {corr:.2f})"),
+    ]
+    ax.legend(handles=legend_handles, fontsize=15, loc="upper right",
+            bbox_to_anchor=(0.97, 0.72))
+
+    _ax_style(ax,
+            title=f"Convergence Rate vs. Degree Variance over {n_graphs} instances",
+            xlabel=r"$\mathrm{Var}(d) = \frac{1}{N}\sum_i (d_i - \bar{d})^2$",
+            ylabel=f"IC$\\to$opt  [%]  (out of {n_init} ICs)")
+
+    ax.set_ylim(-5.0, 115.0)
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.0f}%"))
+
+    return fig
 # ═══════════════════════════════════════════════════════════════════════════════
 # Entry point
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -963,13 +1059,11 @@ def main():
     fig2 = make_figure2(results, args)   # spectral fingerprint
     fig3 = make_figure3(results, args)   # summary statistics
     fig5 = make_figure5(results, args)   # structural comparison: 4 worst vs best
-
     if args.save:
         tag = f"N{args.N}_p{args.p1:.2f}_ng{args.n_graphs}"
         for name, fig in [("histogram",  fig1),
                            ("spectral",   fig2),
                            ("summary",    fig3),
-                           ("worst_traj", fig4),
                            ("structure",  fig5)]:
             for ext in ("pdf", "png"):
                 fname = f"oim_conjecture_{name}_{tag}.{ext}"
